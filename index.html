@@ -1,0 +1,2493 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Bestand &amp; Bestellung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<style>
+/* Layout: Lagerzettel – Reiter oben (Bestand, Bestellung, Lieferanten, Inventar); im Bestand links Rubriken mit Listen, rechts die Artikelzeilen */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --fg: #1b2530;
+  --muted: #5d6b7a;
+  --line: #d3dae2;
+  --accent: #2c5d8f;
+  --accent-soft: #e2ebf5;
+  --accent-ink: #ffffff;
+  --alert: #c4520e;
+  --alert-soft: #fbe9dc;
+  --ok: #2f7a4d;
+  --ok-soft: #e1f1e7;
+  --scrim: rgba(20, 30, 42, 0.45);
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181f; --surface: #1a222c; --fg: #e4eaf0; --muted: #93a1b0; --line: #2c3743;
+    --accent: #79a9db; --accent-soft: #1d2b3b; --accent-ink: #0d1520; --alert: #f08a4b; --alert-soft: #3a2518;
+    --ok: #6cc28e; --ok-soft: #1a3324; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181f; --surface: #1a222c; --fg: #e4eaf0; --muted: #93a1b0; --line: #2c3743;
+  --accent: #79a9db; --accent-soft: #1d2b3b; --accent-ink: #0d1520; --alert: #f08a4b; --alert-soft: #3a2518;
+  --ok: #6cc28e; --ok-soft: #1a3324; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 22px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-stretch: 80%; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: clamp(1.9rem, 6vw, 2.6rem); font-weight: 800; line-height: 1; }
+h2 { font-size: 1.35rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+.status { font-size: 0.85rem; color: var(--muted); margin: 0; }
+.status.err { color: var(--alert); }
+.hint { font-size: 0.82rem; color: var(--muted); margin: 0; max-width: 65ch; }
+
+/* Reiter */
+.app { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 28px; align-items: start; }
+.tabs { display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); border-left: 1px solid var(--line); }
+.tabs button {
+  display: flex; justify-content: space-between; align-items: center; text-align: left;
+  border: 0; border-left: 3px solid transparent; margin-left: -1px; border-radius: 0; background: transparent; color: var(--muted);
+  padding: 10px 12px; font-family: var(--font-display); font-stretch: 85%; font-weight: 700; font-size: 1.02rem; white-space: nowrap;
+}
+.tabs button:hover { color: var(--fg); background: var(--accent-soft); }
+.tabs button[aria-selected="true"] { color: var(--fg); border-left-color: var(--accent); background: var(--surface); }
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .tabs { flex-direction: row; position: static; border-left: 0; border-bottom: 1px solid var(--line); overflow-x: auto; gap: 4px; }
+  .tabs button { border-left: 0; margin-left: 0; border-bottom: 3px solid transparent; justify-content: flex-start; }
+  .tabs button[aria-selected="true"] { border-bottom-color: var(--accent); background: transparent; }
+}
+@media (max-width: 1180px) and (min-width: 901px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.modal {
+  position: fixed; inset: 0; z-index: 50; background: var(--scrim); display: grid; place-items: center; overflow-y: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px));
+}
+.dialog { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; width: min(680px, 100%); padding: 18px 20px 20px; box-shadow: 0 18px 50px rgba(0,0,0,.28); display: grid; gap: 4px; }
+.dlg-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.dlg-actions { padding-top: 6px; }
+.dlg-actions .spacer { flex: 1; }
+.dialog.danger-zone { border-top: 4px solid var(--alert); }
+form.confirm { display: grid; gap: 12px; padding-top: 10px; }
+form.confirm p { margin: 0; max-width: 60ch; }
+form.confirm label { text-transform: none; letter-spacing: 0; font-family: var(--font-body); font-size: 0.88rem; color: var(--fg); }
+.tag.tag-btn { min-height: 0; padding: 2px 8px; border-radius: 3px; cursor: pointer; }
+.tag.tag-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tabs .badge { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--line); color: var(--fg); }
+.tabs .badge.warn { background: var(--alert); color: var(--accent-ink); }
+
+.view { display: grid; gap: 16px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+
+/* Bestand mit Seitenleiste */
+.split { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+aside.side { display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.side .rub { display: grid; gap: 2px; }
+.side .rub-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 2px; }
+.side .rub-head h3 { font-size: 0.95rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fbtn {
+  display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 6px 8px; min-height: 32px; border-radius: 4px;
+}
+.fbtn:hover { background: var(--accent-soft); }
+.fbtn[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.fbtn .n { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fbtn.sub { padding-left: 18px; }
+.side .mini { display: flex; gap: 4px; padding: 2px 0 2px 10px; }
+.side .mini input { padding: 5px 7px; font-size: 0.88rem; }
+.side .mini button { min-height: 32px; padding: 4px 9px; }
+.side .divider { border-top: 1px solid var(--line); }
+
+/* Bestellliste */
+.group { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--alert); border-radius: 6px; }
+.group-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.group-head .contact { font-size: 0.82rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.group-head .contact span { user-select: all; }
+.group-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.order-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px 14px; align-items: center; padding: 12px 16px; border-bottom: 1px dashed var(--line); }
+.order-row:last-child { border-bottom: 0; }
+.order-row .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.order-row .why { font-size: 0.8rem; color: var(--muted); }
+.order-row .qty { color: var(--alert); font-size: 1.05rem; }
+.qty { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.empty { padding: 18px 16px; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); }
+.empty.good { color: var(--ok); background: var(--ok-soft); border-color: transparent; font-weight: 500; }
+textarea.copy { width: 100%; min-height: 110px; font-family: var(--font-mono); font-size: 0.85rem; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 8px; }
+.copy-box { padding: 0 16px 14px; display: grid; gap: 4px; }
+
+.chip { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--alert-soft); color: var(--alert); white-space: nowrap; }
+.chip.ordered { background: var(--ok-soft); color: var(--ok); }
+.chip.example { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.chip.cond { background: var(--accent-soft); color: var(--accent); }
+.chip.cond.defekt { background: var(--alert-soft); color: var(--alert); }
+
+/* Zeilenlisten */
+.rows { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row.low { box-shadow: inset 4px 0 0 var(--alert); }
+.row .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.row .name { font-weight: 600; overflow-wrap: anywhere; }
+.row .sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 0.8rem; color: var(--muted); align-items: center; }
+.limits { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag { font-size: 0.75rem; padding: 1px 7px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); white-space: nowrap; }
+.tag b { font-weight: 500; color: var(--muted); }
+.supplier-ref { font-size: 0.78rem; color: var(--muted); }
+.counter { display: flex; align-items: center; gap: 4px; }
+.counter input.val { width: 7.5ch; text-align: center; font-weight: 600; padding: 6px 4px; background: var(--surface); -moz-appearance: textfield; }
+.counter input.val::-webkit-outer-spin-button, .counter input.val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.counter .unit { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); min-width: 3ch; }
+.row.low .counter input.val { color: var(--alert); border-color: var(--alert); }
+.bank { font-family: var(--font-mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.panel { grid-column: 1 / -1; display: grid; gap: 12px; padding-top: 8px; }
+.panel form { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: end; background: var(--bg); border-radius: 5px; padding: 10px 12px; }
+.tag button { border: 0; background: transparent; min-height: 0; padding: 0 0 0 5px; color: var(--muted); font-size: 0.8rem; }
+.tag button:hover { color: var(--alert); }
+.chip.kind { background: var(--accent-soft); color: var(--accent); }
+@media (max-width: 760px) { .panel form { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.bar { grid-column: 1 / -1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.row.low .bar i { background: var(--alert); }
+.loc-head { padding: 10px 16px 6px; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--bg); }
+.loc-head:first-child { border-radius: 6px 6px 0 0; }
+.detail { font-size: 0.85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.detail span { user-select: text; }
+.detail a { color: var(--accent); }
+
+button { font: inherit; cursor: pointer; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 12px; min-height: 36px; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.icon { width: 36px; padding: 0; font-size: 1.1rem; font-family: var(--font-mono); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); font-size: 0.85rem; padding: 4px 8px; min-height: 30px; }
+button.ghost:hover { color: var(--fg); }
+button.danger { color: var(--alert); }
+button.armed { background: var(--alert); color: var(--accent-ink); border-color: var(--alert); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* Formulare */
+form.card, .edit { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: end; }
+form.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+.edit { grid-column: 1 / -1; padding-top: 8px; }
+.span2 { grid-column: span 2; } .span3 { grid-column: span 3; } .span6 { grid-column: 1 / -1; }
+label { display: grid; gap: 3px; font-size: 0.72rem; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; min-width: 0; }
+input, select { font: inherit; font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 7px 9px; width: 100%; min-width: 0; }
+input[type=number] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+input[type=checkbox] { width: auto; accent-color: var(--accent); }
+fieldset { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 6px; min-width: 0; }
+legend { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 0 4px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.checks .rname { font-weight: 600; font-size: 0.85rem; margin-right: 2px; }
+.checks label { display: flex; align-items: center; gap: 5px; font-family: var(--font-body); font-size: 0.9rem; text-transform: none; letter-spacing: 0; color: var(--fg); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .split { grid-template-columns: minmax(0,1fr); }
+  form.card, .edit { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .span2, .span3 { grid-column: span 1; }
+  .wide-m { grid-column: 1 / -1; }
+  .order-row { grid-template-columns: minmax(0,1fr) auto; }
+  .order-row button { grid-column: 1 / -1; justify-self: start; }
+}
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .25s ease; } }
+.sortbar { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+label.inline { display: flex; align-items: center; gap: 8px; }
+label.inline select { width: auto; padding: 5px 8px; font-size: 0.88rem; }
+.span4 { grid-column: span 4; }
+.btn-end { grid-column: 5 / span 2; justify-content: end; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tfoot td { border-top: 2px solid var(--line); border-bottom: 0; font-weight: 600; background: var(--bg); }
+th.num, td.num { text-align: right; }
+.inv-table { min-width: 680px; }
+.inv-table tr.low td:first-child { box-shadow: inset 4px 0 0 var(--alert); }
+.inv-table select { min-width: 150px; }
+.cell-name { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.cell-name .name { font-weight: 600; }
+.price-cell { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.price-in { width: 9ch; text-align: right; font-family: var(--font-mono); }
+.price-cell .unit, .soll-haben { font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+.soll-haben b { color: var(--fg); }
+tr.low .soll-haben b { color: var(--alert); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.dialog.wide { width: min(900px, 100%); }
+.slip { display: grid; gap: 14px; padding-top: 10px; }
+.slip-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+.addr { display: grid; gap: 2px; font-size: 0.92rem; }
+.addr .muted { color: var(--muted); font-size: 0.85rem; }
+.slip-table { min-width: 560px; }
+.dropzone { display: grid; gap: 4px; place-items: center; text-align: center; padding: 34px 16px; border: 2px dashed var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+.dropzone b { font-family: var(--font-display); font-stretch: 85%; font-size: 1.15rem; }
+.dropzone span { color: var(--muted); font-size: 0.9rem; }
+.dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
+#impFile:focus-visible + .dropzone { outline: 2px solid var(--accent); outline-offset: 2px; }
+.imp-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: none; }
+.working { display: flex; align-items: center; gap: 12px; padding: 24px 4px; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); flex: none; }
+@media (prefers-reduced-motion: no-preference) { .spinner { animation: spin 0.9s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.imp-table { min-width: 760px; }
+.imp-table td { padding: 5px 8px; }
+.imp-table input:not([type=checkbox]) { padding: 5px 7px; font-size: 0.9rem; }
+.imp-table .w-name { min-width: 200px; } .imp-table .w-unit { width: 7ch; } .imp-table .w-sup { min-width: 150px; }
+.imp-table tr.off td { opacity: 0.45; }
+.imp-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.scan-row { grid-template-columns: minmax(0,1fr) auto; }
+.scan-row.current { background: var(--accent-soft); }
+.scan-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.qr-thumb { padding: 3px; background: #ffffff; border: 1px solid var(--line); border-radius: 4px; min-height: 0; line-height: 0; flex: none; }
+.qr-thumb svg { display: block; }
+.qr-ph { display: block; background: repeating-linear-gradient(45deg, var(--line) 0 4px, transparent 4px 8px); }
+.qr-big { display: grid; place-items: center; padding: 14px; }
+.qr-big svg { background: #ffffff; padding: 10px; border-radius: 6px; max-width: 100%; height: auto; }
+.scan-panel { display: grid; gap: 10px; background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; padding: 16px 18px; }
+.scan-name { font-size: 1.6rem; }
+.scan-facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.9rem; color: var(--muted); }
+.scan-facts b { color: var(--fg); font-family: var(--font-mono); font-weight: 600; }
+.scan-form { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.scan-form label { flex: 0 1 220px; }
+.scan-form input { font-size: 1.6rem; font-family: var(--font-mono); font-weight: 600; padding: 10px 12px; text-align: center; }
+.scan-form button { min-height: 52px; padding: 0 22px; font-size: 1rem; }
+.head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.acct-btn { font-weight: 600; }
+.gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); overflow-y: auto; display: grid; place-items: start center;
+  padding: calc(env(safe-area-inset-top, 0px) + 8vh) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 24px) max(16px, env(safe-area-inset-left, 0px)); }
+.gate-card { width: min(620px, 100%); display: grid; gap: 16px; }
+.gate-card h1 { margin-bottom: 4px; }
+.gate-form { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; align-content: start; }
+.gate-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gate-list { display: grid; gap: 6px; }
+.gate-lager { text-align: left; font-weight: 600; padding: 12px 14px; min-height: 48px; }
+.acct-sec { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.acct-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.acct-code code { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 600; letter-spacing: 0.12em; padding: 6px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; user-select: all; }
+@media (max-width: 640px) { .gate-two { grid-template-columns: minmax(0, 1fr); } }
+.qty-in { width: 9ch; text-align: right; font-family: var(--font-mono); padding: 5px 7px; }
+#invFilter button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+@media (max-width: 760px) {
+  .btn-end, .span4 { grid-column: 1 / -1; }
+  .slip-cols { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Lagerzettel</div>
+      <h1>Bestand &amp; Bestellung</h1>
+    </div>
+    <div class="head-right">
+      <p id="status" class="status" hidden></p>
+      <button type="button" id="acctBtn" class="acct-btn">Konto</button>
+    </div>
+  </header>
+
+  <div class="app">
+  <nav class="tabs" role="tablist" aria-label="Bereiche">
+    <button role="tab" data-view="bestand">Bestand<span class="badge" id="bItems">0</span></button>
+    <button role="tab" data-view="bestellung">Bestellliste<span class="badge" id="bLow">0</span></button>
+    <button role="tab" data-view="lieferanten">Lieferanten<span class="badge" id="bSup">0</span></button>
+    <button role="tab" data-view="inventar">Inventar<span class="badge" id="bInv">0</span></button>
+    <button role="tab" data-view="scan">Scan</button>
+  </nav>
+  <main class="view">
+
+  <!-- BESTAND -->
+  <section class="view" id="v-bestand" hidden>
+    <div class="split">
+      <aside class="side" id="sidebar" aria-label="Rubriken und Listen"></aside>
+      <div class="view">
+        <div class="sec-head">
+          <div>
+            <div class="eyebrow" id="filterEyebrow">Bestand</div>
+            <h2 id="filterTitle">Alle Artikel</h2>
+          </div>
+          <div class="sortbar">
+            <span class="hint" id="filterInfo"></span>
+            <label class="inline">Sortieren<select id="itemSort" class="sort-select" data-sort="item"></select></label>
+            <button type="button" class="import-btn">Importieren</button>
+          </div>
+        </div>
+        <div id="stockList" class="rows"></div>
+        <form class="card" id="addItem">
+          <div class="span6"><h3 id="addItemTitle">Artikel hinzufügen</h3></div>
+          <label class="span2 wide-m">Artikel<input id="aName" required placeholder="z. B. Kaffeebohnen" autocomplete="off"></label>
+          <label>Einheit<input id="aUnit" value="Stk"></label>
+          <label>Bestand<input id="aStock" type="number" min="0" step="any" value="0" required></label>
+          <label>Mindest<input id="aMin" type="number" min="0" step="any" value="1" required></label>
+          <label>Soll<input id="aTarget" type="number" min="0" step="any" value="3" required></label>
+          <label>Einkaufspreis €<input id="aPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+          <label>Sortieren nach<input id="aSort" autocomplete="off" placeholder="z. B. 10 oder Kaffee"></label>
+          <label class="span2 wide-m">Lieferant<select id="aSupplier" data-newsup="aNewSup"></select></label>
+          <label class="span2 wide-m">Standort<input id="aLoc" list="locOptions" autocomplete="off" placeholder="optional"></label>
+          <label class="span4 wide-m" hidden>Neuer Lieferant<input id="aNewSup" autocomplete="off" placeholder="Name des neuen Lieferanten"></label>
+          <div class="btn-end actions"><button class="primary" type="submit">Hinzufügen</button></div>
+        </form>
+        <p class="hint">Über „Importieren“ übernimmst du Artikel aus einer CSV-Liste, einem PDF oder einem Foto. Den Bestand änderst du mit − und + oder tippst die Zahl direkt ins Feld. Fällt er unter <b>Mindest</b>, kommt der Artikel auf die Bestellliste. Bestellt wird so viel, dass wieder die <b>Soll</b>menge erreicht ist. Gibt es den Lieferanten noch nicht, wähle „+ Neuen Lieferanten anlegen“.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BESTELLLISTE -->
+  <section class="view" id="v-bestellung" hidden>
+    <div class="sec-head">
+      <h2>Bestellliste</h2>
+      <span class="hint">Entsteht automatisch und ist nach Lieferant sortiert. Pro Lieferant kannst du einen Bestellschein als PDF erstellen.</span>
+    </div>
+    <div id="orderGroups" class="view"></div>
+  </section>
+
+  <!-- LIEFERANTEN -->
+  <section class="view" id="v-lieferanten" hidden>
+    <div class="sec-head">
+      <h2>Lieferanten</h2>
+      <div class="sortbar">
+        <label class="inline">Sortieren<select id="supSort" class="sort-select" data-sort="sup"></select></label>
+      </div>
+    </div>
+    <p class="hint">Über „+ Artikel hinzufügen“ ordnest du einem Lieferanten Artikel zu oder legst neue an. Ein Klick auf einen Artikel öffnet „Artikel bearbeiten“.</p>
+    <div id="supplierList" class="rows"></div>
+    <form class="card" id="addSupplier">
+      <div class="span6"><h3>Lieferant hinzufügen</h3></div>
+      <label class="span2 wide-m">Name<input id="sName" required autocomplete="off" placeholder="z. B. Getränkehandel Müller"></label>
+      <label class="span2">Ansprechpartner<input id="sContact" autocomplete="off"></label>
+      <label class="span2">Telefon<input id="sPhone" type="tel" autocomplete="off"></label>
+      <label class="span2 wide-m">E-Mail<input id="sEmail" type="email" autocomplete="off"></label>
+      <label class="span2 wide-m">Straße und Nr.<input id="sStreet" autocomplete="off"></label>
+      <label class="span2 wide-m">PLZ und Ort<input id="sCity" autocomplete="off"></label>
+      <label class="span2 wide-m">Website<input id="sWeb" autocomplete="off" placeholder="https://"></label>
+      <label class="span2">Unsere Kunden-Nr.<input id="sCustomer" autocomplete="off"></label>
+      <label class="span2">Sortieren nach<input id="sSort" autocomplete="off" placeholder="z. B. 1 oder Getränke"></label>
+      <label class="span2 wide-m">Zahlweise<select id="sPayment"></select></label>
+      <label class="span2 wide-m">Zahlungsziel<input id="sTerms" autocomplete="off" placeholder="z. B. 14 Tage netto"></label>
+      <label class="span2 wide-m">Notiz<input id="sNote" autocomplete="off" placeholder="z. B. liefert dienstags"></label>
+      <fieldset>
+        <legend>Bankverbindung</legend>
+        <div class="edit" style="padding-top:0">
+          <label class="span3 wide-m">Kontoinhaber<input id="sHolder" autocomplete="off"></label>
+          <label class="span3 wide-m">Bank<input id="sBank" autocomplete="off"></label>
+          <label class="span3 wide-m">IBAN<input id="sIban" autocomplete="off" placeholder="DE00 0000 0000 0000 0000 00"></label>
+          <label class="span3 wide-m">BIC<input id="sBic" autocomplete="off"></label>
+        </div>
+      </fieldset>
+      <div class="span6 actions" style="justify-content:end"><button class="primary" type="submit">Hinzufügen</button></div>
+    </form>
+  </section>
+
+  <!-- INVENTAR -->
+  <section class="view" id="v-inventar" hidden>
+    <div class="sec-head">
+      <h2>Inventar</h2>
+      <div class="actions" id="invFilter" role="group" aria-label="Anzeigen">
+        <button type="button" data-f="alle">Alles</button>
+        <button type="button" data-f="artikel">Nur Artikel</button>
+        <button type="button" data-f="geraete">Nur Gegenstände</button>
+      </div>
+    </div>
+    <div class="view" id="invItemsSec">
+      <div class="sec-head">
+        <h3>Artikel</h3>
+        <div class="sortbar"><label class="inline">Sortieren<select id="invSort" class="sort-select" data-sort="item"></select></label><button type="button" class="import-btn">Importieren</button></div>
+      </div>
+      <p class="hint">Hier änderst du nur Lieferant und Einkaufspreis. Alles andere bearbeitest du im Bestand. Löschen geht nur hier.</p>
+      <div class="table-wrap"><table class="inv-table" id="invTable"></table></div>
+    </div>
+    <div class="view" id="invGoodsSec">
+      <h3>Gegenstände</h3>
+      <div id="invList" class="rows"></div>
+    </div>
+    <form class="card" id="addInv">
+      <div class="span6"><h3>Zum Inventar hinzufügen</h3></div>
+      <label class="span2 wide-m">Art<select id="iKind"><option value="item">Artikel (wird nachbestellt)</option><option value="inv">Gegenstand (z. B. Gerät)</option></select></label>
+      <label class="span2 wide-m">Name<input id="iName" required autocomplete="off" placeholder="z. B. Kaffeebohnen"></label>
+      <label class="span2 wide-m">Standort<input id="iLoc" autocomplete="off" placeholder="z. B. Keller" list="locOptions"></label>
+      <label>Anzahl<input id="iQty" type="number" min="0" step="any" value="1"></label>
+      <label class="k-item">Einheit<input id="iUnit" value="Stk" autocomplete="off"></label>
+      <label class="k-item">Mindest<input id="iMin" type="number" min="0" step="any" value="1"></label>
+      <label class="k-item">Soll<input id="iTarget" type="number" min="0" step="any" value="3"></label>
+      <label class="k-item">Einkaufspreis €<input id="iPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+      <label class="k-item">Sortieren nach<input id="iSort" autocomplete="off"></label>
+      <label class="k-item span2 wide-m">Lieferant<select id="iSupplier" data-newsup="iNewSup"></select></label>
+      <label class="span2 wide-m" hidden>Neuer Lieferant<input id="iNewSup" autocomplete="off" placeholder="Name des neuen Lieferanten"></label>
+      <label class="k-inv">Zustand<select id="iCond"><option>neu</option><option selected>gut</option><option>gebraucht</option><option>defekt</option></select></label>
+      <label class="k-inv span3 wide-m">Notiz<input id="iNote" autocomplete="off" placeholder="z. B. Seriennummer, Kaufdatum"></label>
+      <div class="span6 actions" style="justify-content:end"><button class="primary" type="submit">Hinzufügen</button></div>
+    </form>
+  </section>
+  <!-- SCAN -->
+  <section class="view" id="v-scan" hidden>
+    <div class="sec-head">
+      <h2>Scan</h2>
+      <div class="sortbar">
+        <label class="inline">Sortieren<select id="scanSort" class="sort-select" data-sort="item"></select></label>
+        <button type="button" id="labelsBtn">Alle QR-Etiketten als PDF</button>
+        <button type="button" class="primary" id="scanBtn">QR-Code scannen</button>
+      </div>
+    </div>
+    <input type="file" id="scanFile" accept="image/*" capture="environment" class="sr" tabindex="-1" aria-hidden="true">
+    <p class="hint">Jeder Artikel hat einen eigenen QR-Code. Scannst du ihn mit der Kamera-App deines Handys, öffnet sich diese Seite direkt mit dem Eingabefeld für den Artikel. Alternativ: „QR-Code scannen“ antippen und den Code fotografieren.</p>
+    <p class="status" id="labelsMsg" hidden></p>
+    <div id="scanPanelWrap"></div>
+    <div id="scanList" class="rows"></div>
+  </section>
+  <datalist id="locOptions"></datalist>
+  </main>
+  </div>
+</div>
+<div id="modal" class="modal" hidden></div>
+<div id="acct" class="modal" hidden></div>
+<div id="gate" class="gate" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* ============================================================
+   EINSTELLUNGEN – hier deine Supabase-Daten eintragen
+   (Supabase → Project Settings → API). Der "anon public" Schlüssel
+   darf hier stehen; die Datenbank-Regeln schützen die Daten.
+   Bleiben die Felder leer, speichert die App nur im Browser.
+   ============================================================ */
+const SUPABASE_URL = "https://uzmnweejdaokneedsnox.supabase.co/rest/v1/";        // z. B. "https://abcdefgh.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6bW53ZWVqZGFva25lZWRzbm94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwMzk3NDgsImV4cCI6MjEwODYxNTc0OH0.a0IDHBKHFnhh9FhqWxknjju2nauLHOxVOfY84rAuedQ";   // langer Schlüssel, beginnt meist mit "eyJ"
+
+/* ============================================================
+   SPEICHER-BAUSTEIN (Web-Version mit Supabase)
+   Gleiche Schnittstelle wie in der Claude-Version:
+     subscribe(sammlung, cb, onError)   save(sammlung, obj)
+     remove(sammlung, id)               newId(sammlung)
+   Sammlungen: rubriken, lists, items, suppliers, inventory, settings
+   ============================================================ */
+const SAMMLUNGEN = ["rubriken", "lists", "items", "suppliers", "inventory", "settings"];
+const sbConfigured = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+const sb = sbConfigured() ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: "pkce", persistSession: true, detectSessionInUrl: true } }) : null;
+const konto = { user: null, lager: null };
+
+function createLocalStore() {
+  const key = (c) => "bestandsliste." + c;
+  const listeners = {};
+  const read = (c) => { try { return JSON.parse(localStorage.getItem(key(c)) || "[]"); } catch { return []; } };
+  const write = (c, rows) => { try { localStorage.setItem(key(c), JSON.stringify(rows)); } catch {} (listeners[c] || []).forEach(cb => cb(rows)); };
+  return {
+    kind: "local",
+    subscribe(c, cb) { (listeners[c] ||= []).push(cb); cb(read(c)); },
+    async save(c, obj) { write(c, [...read(c).filter(r => r.id !== obj.id), obj]); },
+    async remove(c, id) { write(c, read(c).filter(r => r.id !== id)); },
+    async saveMany(c, objs) { const ids = new Set(objs.map(o => o.id)); write(c, [...read(c).filter(r => !ids.has(r.id)), ...objs]); },
+    async readAll() { return Object.fromEntries(SAMMLUNGEN.map(c => [c, read(c)])); },
+    async reload() { SAMMLUNGEN.forEach(c => (listeners[c] || []).forEach(cb => cb(read(c)))); },
+    newId() { return "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  };
+}
+
+function dbError(error) {
+  const code = error && error.code;
+  if (code === "42501" || code === "PGRST301") return { code: "invalid_argument", message: error.message };
+  if (code === "23514") return { code: "invalid_argument", message: error.message };
+  return { code: "unavailable", message: error?.message || "Netzwerkfehler" };
+}
+
+function createSupabaseStore(lagerId) {
+  const cache = Object.fromEntries(SAMMLUNGEN.map(c => [c, new Map()]));
+  const listeners = {};
+  const errorCbs = new Set();
+  let loaded = false;
+  const toObj = (row) => ({ ...(row.daten || {}), id: row.id });
+  const emit = (c) => { if (loaded) (listeners[c] || []).forEach(cb => cb([...cache[c].values()])); };
+
+  async function loadAll() {
+    const fresh = Object.fromEntries(SAMMLUNGEN.map(c => [c, new Map()]));
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from("eintraege").select("sammlung,id,daten").eq("lager_id", lagerId).range(from, from + 999);
+      if (error) throw dbError(error);
+      data.forEach(r => fresh[r.sammlung]?.set(r.id, toObj(r)));
+      if (data.length < 1000) break;
+    }
+    SAMMLUNGEN.forEach(c => { cache[c] = fresh[c]; });
+    loaded = true;
+    SAMMLUNGEN.forEach(emit);
+  }
+
+  let lastError = null;
+  loadAll().catch(e => { lastError = e; errorCbs.forEach(cb => cb(e)); });
+  let firstJoin = true;
+  sb.channel("eintraege-" + lagerId)
+    .on("postgres_changes", { event: "*", schema: "public", table: "eintraege", filter: "lager_id=eq." + lagerId }, (p) => {
+      if (p.eventType === "DELETE") {
+        const o = p.old || {};
+        if (o.lager_id && o.lager_id !== lagerId) return;
+        if (cache[o.sammlung]?.delete(o.id)) emit(o.sammlung);
+      } else {
+        const n = p.new || {};
+        if (n.lager_id !== lagerId || !cache[n.sammlung]) return;
+        cache[n.sammlung].set(n.id, toObj(n));
+        emit(n.sammlung);
+      }
+    })
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        // Beim ersten Mal und nach jeder Unterbrechung alles neu laden, damit nichts fehlt.
+        if (!firstJoin) loadAll().catch(() => {});
+        firstJoin = false;
+      }
+    });
+  // Handy aus dem Standby: frisch laden
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !firstJoin) loadAll().catch(() => {}); });
+
+  return {
+    kind: "supabase",
+    subscribe(c, cb, onError) { (listeners[c] ||= []).push(cb); if (onError) { errorCbs.add(onError); if (lastError && !loaded) onError(lastError); } if (loaded) cb([...cache[c].values()]); },
+    async save(c, obj) {
+      const { id, ...daten } = obj;
+      cache[c].set(id, obj);
+      const { error } = await sb.from("eintraege").upsert({ lager_id: lagerId, sammlung: c, id, daten });
+      if (error) { loadAll().catch(() => {}); throw dbError(error); }
+    },
+    async remove(c, id) {
+      cache[c].delete(id);
+      const { error } = await sb.from("eintraege").delete().match({ lager_id: lagerId, sammlung: c, id });
+      if (error) { loadAll().catch(() => {}); throw dbError(error); }
+    },
+    async saveMany(c, objs) {
+      for (let i = 0; i < objs.length; i += 500) {
+        const chunk = objs.slice(i, i + 500);
+        chunk.forEach(o => cache[c].set(o.id, o));
+        const { error } = await sb.from("eintraege").upsert(chunk.map(({ id, ...daten }) => ({ lager_id: lagerId, sammlung: c, id, daten })));
+        if (error) { loadAll().catch(() => {}); throw dbError(error); }
+      }
+    },
+    async readAll() { await loadAll(); return Object.fromEntries(SAMMLUNGEN.map(c => [c, [...cache[c].values()]])); },
+    reload: loadAll,
+    newId() { return (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2))).replace(/-/g, "").slice(0, 20); }
+  };
+}
+
+/* ============================================================
+   KONTO-BAUSTEIN: Anmeldung, Lager wählen, Einladen, Sicherung
+   ============================================================ */
+const gateEl = () => document.getElementById("gate");
+function gate(...kids) {
+  const g = gateEl();
+  g.replaceChildren(el("div", { class: "gate-card" },
+    el("div", { class: "eyebrow" }, "Lagerzettel"), el("h1", {}, "Bestand & Bestellung"), ...kids));
+  g.hidden = false;
+  const f = g.querySelector("input"); if (f) setTimeout(() => f.focus(), 0);
+}
+function gateMsg(id, text, err) { const m = document.getElementById(id); if (m) { m.textContent = text || ""; m.hidden = !text; m.classList.toggle("err", !!err); } }
+const authText = (e) => {
+  const m = (e && e.message) || "";
+  if (/Invalid login credentials/i.test(m)) return "E-Mail oder Passwort stimmt nicht.";
+  if (/Email not confirmed/i.test(m)) return "Bitte bestätige zuerst deine E-Mail-Adresse über den Link in der Mail.";
+  if (/already registered/i.test(m)) return "Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.";
+  if (/Password should be/i.test(m)) return "Das Passwort muss mindestens 6 Zeichen haben.";
+  if (/Signups not allowed/i.test(m)) return "Neue Konten sind gerade gesperrt. Frag den Besitzer der App.";
+  if (/rate limit/i.test(m)) return "Zu viele Versuche. Bitte warte ein paar Minuten.";
+  return m || "Das hat nicht geklappt. Bitte noch einmal versuchen.";
+};
+
+function loginScreen(resolve) {
+  const email = el("input", { id: "gEmail", type: "email", autocomplete: "email", required: true });
+  const pw = el("input", { id: "gPw", type: "password", autocomplete: "current-password", required: true, minlength: 6 });
+  const form = el("form", { class: "gate-form" },
+    el("label", {}, "E-Mail", email), el("label", {}, "Passwort", pw),
+    el("p", { class: "status", id: "gMsg", hidden: true }),
+    el("div", { class: "actions" },
+      el("button", { class: "primary", type: "submit" }, "Anmelden"),
+      el("button", { type: "button", onclick: signUp }, "Neues Konto erstellen"),
+      el("button", { type: "button", class: "ghost", onclick: resetPw }, "Passwort vergessen")));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    gateMsg("gMsg", "Anmelden …");
+    const { data, error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: pw.value });
+    if (error) return gateMsg("gMsg", authText(error), true);
+    konto.user = data.user; lagerScreen(resolve);
+  });
+  async function signUp() {
+    if (!email.value.trim() || pw.value.length < 6) return gateMsg("gMsg", "Bitte E-Mail und ein Passwort mit mindestens 6 Zeichen eintragen.", true);
+    gateMsg("gMsg", "Konto wird erstellt …");
+    const { data, error } = await sb.auth.signUp({ email: email.value.trim(), password: pw.value, options: { emailRedirectTo: location.origin + location.pathname } });
+    if (error) return gateMsg("gMsg", authText(error), true);
+    if (data.session) { konto.user = data.user; lagerScreen(resolve); }
+    else gateMsg("gMsg", "Fast geschafft: Wir haben dir eine E-Mail geschickt. Klick auf den Link darin, dann bist du angemeldet.");
+  }
+  async function resetPw() {
+    if (!email.value.trim()) return gateMsg("gMsg", "Trag zuerst deine E-Mail-Adresse ein.", true);
+    const { error } = await sb.auth.resetPasswordForEmail(email.value.trim(), { redirectTo: location.origin + location.pathname + "?neues-passwort=1" });
+    gateMsg("gMsg", error ? authText(error) : "Wir haben dir eine E-Mail zum Zurücksetzen geschickt.", !!error);
+  }
+  gate(el("p", { class: "hint" }, "Melde dich an, um deine Lager zu sehen."), form);
+}
+
+function newPasswordScreen(resolve) {
+  const pw = el("input", { id: "gPw2", type: "password", autocomplete: "new-password", required: true, minlength: 6 });
+  const form = el("form", { class: "gate-form" }, el("label", {}, "Neues Passwort", pw), el("p", { class: "status", id: "gMsg", hidden: true }),
+    el("div", { class: "actions" }, el("button", { class: "primary", type: "submit" }, "Passwort speichern")));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { error } = await sb.auth.updateUser({ password: pw.value });
+    if (error) return gateMsg("gMsg", authText(error), true);
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch {}
+    lagerScreen(resolve);
+  });
+  gate(form);
+}
+
+async function lagerScreen(resolve) {
+  gate(el("p", { class: "hint" }, "Lager werden geladen …"));
+  const { data: liste, error } = await sb.from("lager").select("id,name,einladungscode,erstellt_von").order("name");
+  if (error) { gate(el("p", { class: "status err" }, "Die Lager konnten nicht geladen werden. Prüfe die Internetverbindung."), el("button", { onclick: () => lagerScreen(resolve) }, "Noch einmal")); return; }
+  let last = null; try { last = localStorage.getItem("bestandsliste.lager"); } catch {}
+  const pick = (l) => { try { localStorage.setItem("bestandsliste.lager", l.id); } catch {} konto.lager = l; gateEl().hidden = true; resolve(createSupabaseStore(l.id)); };
+  if (liste.length && last) { const l = liste.find(x => x.id === last); if (l) return pick(l); }
+
+  const nameIn = el("input", { id: "gLagerName", placeholder: "z. B. WG Stuttgart", required: true, maxlength: 80 });
+  const codeIn = el("input", { id: "gCode", placeholder: "8-stelliger Code", required: true, autocapitalize: "characters", maxlength: 12 });
+  const create = el("form", { class: "gate-form" }, el("label", {}, "Neues Lager anlegen", nameIn), el("button", { class: "primary", type: "submit" }, "Anlegen"));
+  const join = el("form", { class: "gate-form" }, el("label", {}, "Mit Einladungscode beitreten", codeIn), el("button", { type: "submit" }, "Beitreten"));
+  create.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { data, error } = await sb.rpc("lager_anlegen", { p_name: nameIn.value.trim() });
+    if (error) return gateMsg("gMsg", error.message, true);
+    pick(data);
+  });
+  join.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { data, error } = await sb.rpc("lager_beitreten", { p_code: codeIn.value.trim() });
+    if (error) return gateMsg("gMsg", /unbekannt/i.test(error.message) ? "Diesen Einladungscode gibt es nicht." : error.message, true);
+    pick(data);
+  });
+  gate(
+    liste.length ? el("div", { class: "gate-list" }, el("h2", {}, "Deine Lager"),
+      ...liste.map(l => el("button", { type: "button", class: "gate-lager", onclick: () => pick(l) }, l.name))) : el("p", { class: "hint" }, "Du bist noch in keinem Lager. Leg eins an oder tritt mit einem Einladungscode bei."),
+    el("p", { class: "status", id: "gMsg", hidden: true }),
+    el("div", { class: "gate-two" }, create, join),
+    el("p", { class: "hint" }, "Angemeldet als ", el("b", {}, konto.user?.email || ""), " · ", el("button", { type: "button", class: "ghost", onclick: logout }, "Abmelden")));
+}
+
+async function logout() {
+  if (sb) await sb.auth.signOut().catch(() => {});
+  try { localStorage.removeItem("bestandsliste.lager"); } catch {}
+  location.hash = ""; location.reload();
+}
+
+async function openStore() {
+  if (!sbConfigured()) return createLocalStore();
+  return new Promise(async (resolve) => {
+    sb.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") newPasswordScreen(resolve); });
+    const { data: { session } } = await sb.auth.getSession();
+    if (/[?&]neues-passwort=1/.test(location.search) && session) return newPasswordScreen(resolve);
+    if (session) { konto.user = session.user; lagerScreen(resolve); }
+    else loginScreen(resolve);
+  });
+}
+
+/* Konto-Fenster: Lager, Einladungscode, Sicherung, Abmelden */
+function openAccount() {
+  const g = document.getElementById("acct");
+  const isLocal = !sb;
+  const isOwner = konto.lager && konto.user && konto.lager.erstellt_von === konto.user.id;
+  const close = () => { g.hidden = true; g.replaceChildren(); document.documentElement.style.overflow = ""; };
+  const code = konto.lager?.einladungscode || "";
+  const fileIn = el("input", { type: "file", id: "backupFile", accept: ".json,application/json", class: "sr", onchange: (e) => { const f = e.target.files[0]; e.target.value = ""; restoreBackup(f); } });
+  g.replaceChildren(el("div", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "acctTitle" },
+    el("div", { class: "dlg-head" },
+      el("div", {}, el("div", { class: "eyebrow" }, isLocal ? "Nur in diesem Browser" : (konto.user?.email || "")), el("h2", { id: "acctTitle" }, isLocal ? "Daten" : (konto.lager?.name || "Konto"))),
+      el("button", { class: "icon", type: "button", "aria-label": "Fenster schließen", onclick: close }, "✕")),
+    isLocal ? el("p", { class: "hint" }, "Supabase ist noch nicht eingerichtet. Die Daten liegen nur in diesem Browser.") :
+      el("div", { class: "acct-sec" },
+        el("h3", {}, "Freunde einladen"),
+        el("p", { class: "hint" }, "Freunde erstellen ein Konto und treten mit diesem Code bei. Danach sehen alle dieselben Daten."),
+        el("div", { class: "acct-code" }, el("code", { id: "acctCode" }, code),
+          el("button", { type: "button", onclick: async () => { try { await navigator.clipboard.writeText(code); gateMsg("acctMsg", "Code kopiert."); } catch { gateMsg("acctMsg", "Bitte den Code markieren und kopieren.", true); } } }, "Kopieren"),
+          isOwner ? el("button", { type: "button", class: "ghost", onclick: async () => {
+            const { data, error } = await sb.rpc("einladungscode_erneuern", { p_lager: konto.lager.id });
+            if (error) return gateMsg("acctMsg", error.message, true);
+            konto.lager.einladungscode = data; document.getElementById("acctCode").textContent = data; gateMsg("acctMsg", "Neuer Code erstellt. Der alte gilt nicht mehr.");
+          } }, "Neuen Code erzeugen") : null)),
+    el("div", { class: "acct-sec" },
+      el("h3", {}, "Sicherung"),
+      el("p", { class: "hint" }, "Speichert alle Daten als Datei. Mit „Sicherung einspielen“ holst du sie zurück oder ziehst in ein anderes Lager um. Vorhandene Einträge mit gleicher Kennung werden dabei überschrieben."),
+      el("div", { class: "actions" },
+        el("button", { type: "button", class: "primary", onclick: downloadBackup }, "Sicherung herunterladen"),
+        el("button", { type: "button", disabled: readOnly, onclick: () => fileIn.click() }, "Sicherung einspielen"), fileIn)),
+    el("p", { class: "status", id: "acctMsg", hidden: true }),
+    isLocal ? null : el("div", { class: "actions dlg-actions" },
+      el("button", { type: "button", onclick: () => { close(); location.hash = ""; logoutToLager(); } }, "Lager wechseln"),
+      el("span", { class: "spacer" }),
+      el("button", { type: "button", class: "danger", onclick: logout }, "Abmelden"))));
+  g.hidden = false; document.documentElement.style.overflow = "hidden";
+  g.onclick = (e) => { if (e.target === g) close(); };
+}
+function logoutToLager() { try { localStorage.removeItem("bestandsliste.lager"); } catch {} location.reload(); }
+
+async function downloadBackup() {
+  try {
+    const data = await store.readAll();
+    const backup = { format: "bestandsliste-sicherung", version: 1, erstellt: new Date().toISOString(), lager: konto.lager?.name || null, sammlungen: data };
+    const blob = new Blob([JSON.stringify(backup, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `Bestand-Sicherung_${todayIso()}.json`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    gateMsg("acctMsg", "Sicherung gespeichert.");
+  } catch { gateMsg("acctMsg", "Die Sicherung konnte nicht erstellt werden.", true); }
+}
+
+async function restoreBackup(file) {
+  if (!file) return;
+  let backup;
+  try { backup = JSON.parse(await file.text()); } catch { return gateMsg("acctMsg", "Diese Datei ist keine gültige Sicherung.", true); }
+  const s = backup && backup.sammlungen;
+  if (!s || typeof s !== "object") return gateMsg("acctMsg", "Diese Datei ist keine Sicherung dieser App.", true);
+  gateMsg("acctMsg", "Sicherung wird eingespielt …");
+  let n = 0;
+  try {
+    for (const c of SAMMLUNGEN) {
+      const rows = (Array.isArray(s[c]) ? s[c] : []).filter(r => r && typeof r.id === "string" && r.id);
+      if (rows.length) { await store.saveMany(c, rows); n += rows.length; }
+    }
+    if (store.reload) await store.reload(); else location.reload();
+    gateMsg("acctMsg", `${n} Einträge eingespielt.`);
+  } catch (e) { gateMsg("acctMsg", e && e.code === "invalid_argument" ? "Du darfst in diesem Lager nichts ändern." : "Einspielen fehlgeschlagen. Bitte noch einmal versuchen.", true); }
+}
+
+/* PDF speichern: im Web direkt als Download */
+async function savePdfFile(doc, filename) { doc.save(filename); return "saved"; }
+
+/* ============================================================
+   KI-BAUSTEIN: Belegerkennung über die Supabase-Funktion "beleg-lesen",
+   die die Claude-API mit deinem geheimen Schlüssel aufruft.
+   ============================================================ */
+const AI_MAX_IMAGES = 5;
+const aiReady = () => !!(sb && konto.user);
+
+async function blobToJpegBase64(blob, maxSide = 1568) {
+  const bmp = await createImageBitmap(blob);
+  const sc = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  const out = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+  const buf = new Uint8Array(await out.arrayBuffer());
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return { media_type: "image/jpeg", data: btoa(bin) };
+}
+
+function parseJsonLoose(text) {
+  const t = String(text || "").trim();
+  try { return JSON.parse(t); } catch {}
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(t); if (fence) { try { return JSON.parse(fence[1]); } catch {} }
+  const a = t.search(/[\[{]/), b = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+  if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch {} }
+  throw { code: "invalid_json" };
+}
+
+async function askAiJson(prompt, images, signal) {
+  if (!aiReady()) throw { code: "not_available" };
+  let imgs = [];
+  try { imgs = images && images.length ? await Promise.all([...images].slice(0, AI_MAX_IMAGES).map(b => blobToJpegBase64(b))) : []; }
+  catch { throw { code: "image_rejected" }; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw { code: "session_expired" };
+  let res;
+  try {
+    res = await fetch(SUPABASE_URL + "/functions/v1/beleg-lesen", {
+      method: "POST", signal,
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ prompt, images: imgs })
+    });
+  } catch (e) { throw { code: e && e.name === "AbortError" ? "cancelled" : "upstream_error" }; }
+  if (res.status === 404) throw { code: "not_available" };
+  if (res.status === 401) throw { code: "session_expired" };
+  if (res.status === 429) throw { code: "rate_limited" };
+  if (res.status === 413) throw { code: "prompt_too_large" };
+  if (!res.ok) throw { code: "upstream_error" };
+  const body = await res.json().catch(() => null);
+  if (!body || typeof body.text !== "string" || !body.text.trim()) throw { code: "empty_completion" };
+  return parseJsonLoose(body.text);
+}
+
+/* ============================================================
+   APP-LOGIK UND OBERFLÄCHE – unabhängig vom Speicher
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const num = (v) => { const n = parseFloat(String(v ?? "").replace(",", ".")); return isFinite(n) && n >= 0 ? n : 0; };
+const priceOrNull = (v) => { const t = String(v ?? "").trim(); if (!t) return null; const n = parseFloat(t.replace(",", ".")); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; };
+const fmt = (n) => Number.isInteger(n) ? String(n) : n.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+const euro = (n) => n == null ? "–" : n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+const str = (v, d = "") => (typeof v === "string" ? v : d);
+const cmpText = (a, b) => a.localeCompare(b, "de", { numeric: true, sensitivity: "base" });
+const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0) || cmpText(a.name, b.name);
+const bySortKey = (a, b) => {
+  if (a.sortKey && b.sortKey) return cmpText(a.sortKey, b.sortKey) || cmpText(a.name, b.name);
+  if (a.sortKey) return -1;
+  if (b.sortKey) return 1;
+  return cmpText(a.name, b.name);
+};
+const isLow = (i) => i.stock < i.min;
+const orderQty = (i) => Math.max(0, i.target - i.stock);
+const NEW_SUP = "__new__";
+const PAYMENTS = ["Überweisung", "Lastschrift", "Rechnung", "Vorkasse", "Bar", "EC-/Kreditkarte", "PayPal"];
+const fmtIban = (v) => v.replace(/\s+/g, "").toUpperCase().replace(/(.{4})/g, "$1 ").trim();
+
+const NORMALIZE = {
+  rubriken: (r) => ({ id: r.id, name: str(r.name, "Rubrik"), order: num(r.order) }),
+  lists: (r) => ({ id: r.id, name: str(r.name, "Liste"), rubrikId: str(r.rubrikId), order: num(r.order) }),
+  items: (r) => ({
+    id: r.id, name: str(r.name, "Artikel"), unit: str(r.unit, "Stk") || "Stk",
+    stock: num(r.stock), min: num(r.min), target: Math.max(num(r.min), num(r.target ?? r.min)),
+    ordered: !!r.ordered, example: !!r.example,
+    listIds: Array.isArray(r.listIds) ? r.listIds.filter(x => typeof x === "string") : [],
+    supplierId: str(r.supplierId), location: str(r.location), sortKey: str(r.sortKey),
+    price: typeof r.price === "number" && isFinite(r.price) && r.price >= 0 ? r.price : null
+  }),
+  suppliers: (r) => ({ id: r.id, name: str(r.name, "Lieferant"), contact: str(r.contact), phone: str(r.phone), email: str(r.email), website: str(r.website), note: str(r.note),
+    street: str(r.street), city: str(r.city), customerNo: str(r.customerNo), sortKey: str(r.sortKey),
+    payment: str(r.payment), terms: str(r.terms), accountHolder: str(r.accountHolder), iban: str(r.iban), bic: str(r.bic), bank: str(r.bank), example: !!r.example }),
+  inventory: (r) => ({ id: r.id, name: str(r.name, "Gegenstand"), qty: num(r.qty), location: str(r.location), condition: str(r.condition, "gut"), note: str(r.note), example: !!r.example }),
+  settings: (r) => ({ id: r.id, name: str(r.name), street: str(r.street), city: str(r.city), phone: str(r.phone), email: str(r.email) })
+};
+const COLLECTIONS = Object.keys(NORMALIZE);
+
+const ITEM_SORTS = { dringend: "Dringend zuerst", sortKey: "Sortieren nach (Feld)", name: "Name A–Z", bestand: "Bestand niedrig zuerst", lieferant: "Lieferant" };
+const SUP_SORTS = { sortKey: "Sortieren nach (Feld)", name: "Name A–Z", artikel: "Meiste Artikel" };
+
+let store = null;
+let readOnly = false;
+const state = Object.fromEntries(COLLECTIONS.map(c => [c, []]));
+const ui = {
+  view: "bestand", filter: "all", manage: false, editing: null, armed: null, copyFallback: null,
+  modal: null, deleteStep: null, slip: null, importOpen: false, qrItem: null, scanned: null, scanVia: false, scanMsg: "", slipNo: "", returnFocus: null, invFilter: "alle",
+  itemSort: "dringend", supSort: "sortKey"
+};
+try { const s = JSON.parse(localStorage.getItem("bestandsliste.sort") || "{}"); if (ITEM_SORTS[s.item]) ui.itemSort = s.item; if (SUP_SORTS[s.sup]) ui.supSort = s.sup; } catch {}
+const VIEWS = ["bestand", "bestellung", "lieferanten", "inventar", "scan"];
+
+const lookup = (c, id) => state[c].find(r => r.id === id);
+const sender = () => lookup("settings", "sender") || { id: "sender", name: "", street: "", city: "", phone: "", email: "" };
+
+function itemComparator(mode = ui.itemSort) {
+  const supName = (i) => lookup("suppliers", i.supplierId)?.name || " ";
+  switch (mode) {
+    case "sortKey": return bySortKey;
+    case "name": return (a, b) => cmpText(a.name, b.name);
+    case "bestand": return (a, b) => (a.stock / (a.target || 1)) - (b.stock / (b.target || 1)) || cmpText(a.name, b.name);
+    case "lieferant": return (a, b) => cmpText(supName(a), supName(b)) || bySortKey(a, b);
+    default: return (a, b) => (isLow(b) - isLow(a)) || bySortKey(a, b);
+  }
+}
+function supComparator() {
+  const count = (s) => state.items.filter(i => i.supplierId === s.id).length;
+  if (ui.supSort === "name") return (a, b) => cmpText(a.name, b.name);
+  if (ui.supSort === "artikel") return (a, b) => count(b) - count(a) || cmpText(a.name, b.name);
+  return bySortKey;
+}
+
+function setStatus(text, err) { const s = $("status"); s.textContent = text || ""; s.hidden = !text; s.classList.toggle("err", !!err); }
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === false || v == null) continue;
+    if (k === "class") e.className = v;
+    else if (k === "value") e.value = v;
+    else if (k === "checked") e.checked = !!v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  kids.flat().forEach(k => k != null && k !== false && e.append(k));
+  return e;
+}
+
+/* Zweistufiges Löschen ohne Browser-Dialog (Rubriken, Listen, Lieferanten, Gegenstände) */
+function deleteBtn(key, label, action) {
+  const armed = ui.armed === key;
+  return el("button", {
+    type: "button", class: armed ? "armed" : "danger", disabled: readOnly,
+    onclick: () => { if (armed) { ui.armed = null; action(); } else { ui.armed = key; render(); } }
+  }, armed ? "Wirklich löschen?" : label);
+}
+
+/* ---------- Speichern (optimistisch) ---------- */
+async function put(c, obj) {
+  const list = state[c];
+  const i = list.findIndex(r => r.id === obj.id);
+  state[c] = i >= 0 ? list.map(r => r.id === obj.id ? obj : r) : [...list, obj];
+  render();
+  try { await store.save(c, obj); } catch (e) { handleWriteError(e); }
+}
+async function del(c, id) {
+  state[c] = state[c].filter(r => r.id !== id);
+  render();
+  try { await store.remove(c, id); } catch (e) { handleWriteError(e); }
+}
+function patchItem(item, changes) {
+  const next = { ...item, ...changes };
+  if (!isLow(next)) next.ordered = false;
+  return put("items", next);
+}
+function handleWriteError(e) {
+  if (e && e.code === "invalid_argument") { readOnly = true; render(); setStatus("Du kannst diese Listen ansehen, aber nicht ändern.", true); }
+  else if (e && e.code === "quota_exceeded") setStatus("Der Speicher ist voll. Lösche alte Einträge, um neue anzulegen.", true);
+  else setStatus("Änderung konnte nicht gespeichert werden. Bitte noch einmal versuchen.", true);
+}
+
+/* ---------- Lieferant beim Anlegen eines Artikels ---------- */
+function blankSupplier(id, name) {
+  return { id, name, contact: "", phone: "", email: "", website: "", note: "", street: "", city: "", customerNo: "", sortKey: "", payment: "", terms: "", accountHolder: "", iban: "", bic: "", bank: "" };
+}
+/* Gibt die Lieferanten-ID zurück, legt bei Bedarf einen neuen an. null = Name fehlt. */
+function resolveSupplier(value, newName) {
+  if (value !== NEW_SUP) return lookup("suppliers", value) ? value : "";
+  const name = (newName || "").trim();
+  if (!name) { setStatus("Bitte einen Namen für den neuen Lieferanten eintragen.", true); return null; }
+  const existing = state.suppliers.find(s => s.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing.id;
+  const id = store.newId("suppliers");
+  put("suppliers", blankSupplier(id, name));
+  return id;
+}
+function fillSupplierSelect(sel, value, allowNew) {
+  const cur = sel.value;
+  sel.replaceChildren(el("option", { value: "" }, "– kein Lieferant –"),
+    ...[...state.suppliers].sort(bySortKey).map(s => el("option", { value: s.id }, s.name)),
+    allowNew ? el("option", { value: NEW_SUP }, "+ Neuen Lieferanten anlegen …") : null);
+  const want = value ?? cur;
+  sel.value = want === NEW_SUP && allowNew ? NEW_SUP : (lookup("suppliers", want) ? want : "");
+}
+function syncNewSupplierFields() {
+  document.querySelectorAll("select[data-newsup]").forEach(sel => {
+    const input = $(sel.dataset.newsup); if (!input) return;
+    const selVisible = !sel.closest("label")?.hidden;
+    input.closest("label").hidden = !(selVisible && sel.value === NEW_SUP);
+  });
+}
+
+/* ---------- Rubriken und Listen ---------- */
+function addRubrik(name) {
+  if (!name.trim()) return;
+  const order = Math.max(0, ...state.rubriken.map(r => r.order)) + 1;
+  put("rubriken", { id: store.newId("rubriken"), name: name.trim(), order });
+}
+function addList(rubrikId, name) {
+  if (!name.trim()) return;
+  const order = Math.max(0, ...state.lists.filter(l => l.rubrikId === rubrikId).map(l => l.order)) + 1;
+  put("lists", { id: store.newId("lists"), name: name.trim(), rubrikId, order });
+}
+async function removeList(listId) {
+  if (ui.filter === listId) ui.filter = "all";
+  const affected = state.items.filter(i => i.listIds.includes(listId));
+  await del("lists", listId);
+  await Promise.all(affected.map(i => put("items", { ...i, listIds: i.listIds.filter(x => x !== listId) })));
+}
+async function removeRubrik(rubrikId) {
+  for (const l of state.lists.filter(l => l.rubrikId === rubrikId)) await removeList(l.id);
+  await del("rubriken", rubrikId);
+}
+async function removeSupplier(id) {
+  const affected = state.items.filter(i => i.supplierId === id);
+  await del("suppliers", id);
+  await Promise.all(affected.map(i => put("items", { ...i, supplierId: "" })));
+}
+
+/* ---------- Eingaben über Neuzeichnen hinweg behalten ---------- */
+function captureInputs() {
+  const kept = {};
+  document.querySelectorAll("[data-keep]").forEach(e => { kept[e.id] = e.type === "checkbox" ? e.checked : e.value; });
+  const a = document.activeElement;
+  let focus = null;
+  if (a && a.id && a !== document.body && !a.closest("form.card")) {
+    let s = null, e = null; try { s = a.selectionStart; e = a.selectionEnd; } catch {}
+    focus = { id: a.id, value: "value" in a && a.tagName !== "BUTTON" ? a.value : null, s, e };
+  }
+  return { kept, focus };
+}
+function restoreInputs({ kept, focus }) {
+  for (const [id, v] of Object.entries(kept)) { const e = $(id); if (!e) continue; if (e.type === "checkbox") e.checked = v; else e.value = v; }
+  if (focus) {
+    const e = $(focus.id);
+    if (e) { if (focus.value != null && e.type !== "checkbox") e.value = focus.value; e.focus(); try { e.setSelectionRange(focus.s, focus.e); } catch {} }
+  }
+}
+
+/* ---------- Zeichnen ---------- */
+function render() {
+  const snap = captureInputs();
+  const low = state.items.filter(isLow);
+  $("bItems").textContent = state.items.length;
+  $("bLow").textContent = low.length; $("bLow").classList.toggle("warn", low.length > 0);
+  $("bSup").textContent = state.suppliers.length;
+  $("bInv").textContent = state.inventory.length + state.items.length;
+  $("locOptions").replaceChildren(...allLocations().map(l => el("option", { value: l })));
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === ui.view)));
+  VIEWS.forEach(v => { $("v-" + v).hidden = v !== ui.view; });
+  document.querySelectorAll("form.card button, form.card input, form.card select, .import-btn").forEach(e => e.disabled = readOnly);
+  document.querySelectorAll("select.sort-select").forEach(sel => { sel.value = sel.dataset.sort === "sup" ? ui.supSort : ui.itemSort; });
+
+  if (ui.view === "bestand") { renderSidebar(); renderStock(); }
+  if (ui.view === "bestellung") renderOrders();
+  if (ui.view === "lieferanten") renderSuppliers();
+  if (ui.view === "inventar") renderInventory();
+  if (ui.view === "scan") renderScan();
+  fillSupplierSelect($("aSupplier"), null, true);
+  fillSupplierSelect($("iSupplier"), null, true);
+  renderModal();
+  restoreInputs(snap);
+  syncNewSupplierFields();
+  const dc = document.querySelector("[data-del-confirm]"); if (dc) dc.dispatchEvent(new Event("input"));
+  if (ui.slip != null) recomputeSlip();
+}
+
+function allLocations() {
+  return [...new Set([...state.inventory, ...state.items].map(i => i.location).filter(Boolean))].sort(cmpText);
+}
+
+function renderSidebar() {
+  const sb = $("sidebar"); sb.replaceChildren();
+  const listExists = (id) => !!lookup("lists", id);
+  const fbtn = (key, label, n, cls = "") => el("button", {
+    type: "button", class: "fbtn " + cls, "aria-current": String(ui.filter === key),
+    onclick: () => { ui.filter = key; ui.editing = null; render(); }
+  }, el("span", {}, label), el("span", { class: "n" }, String(n)));
+
+  sb.append(el("div", { class: "rub" },
+    fbtn("all", "Alle Artikel", state.items.length),
+    fbtn("none", "Ohne Liste", state.items.filter(i => !i.listIds.some(listExists)).length)
+  ));
+
+  const rubs = [...state.rubriken].sort(byOrder);
+  if (!rubs.length && !ui.manage) sb.append(el("p", { class: "hint" }, "Noch keine Rubriken. Lege eine an, z. B. „Küche“ oder „Büro“, und darin Listen."));
+
+  rubs.forEach(r => {
+    const g = el("div", { class: "rub" });
+    if (ui.manage) {
+      g.append(el("div", { class: "mini", style: "padding-left:0" },
+        el("input", { id: "rn-" + r.id, "data-keep": true, value: r.name, "aria-label": "Name der Rubrik",
+          onchange: (e) => e.target.value.trim() && put("rubriken", { ...r, name: e.target.value.trim() }) }),
+        deleteBtn("r-" + r.id, "✕", () => removeRubrik(r.id))
+      ));
+    } else {
+      g.append(el("div", { class: "rub-head" }, el("h3", {}, r.name)));
+    }
+    state.lists.filter(l => l.rubrikId === r.id).sort(byOrder).forEach(l => {
+      if (ui.manage) {
+        g.append(el("div", { class: "mini" },
+          el("input", { id: "ln-" + l.id, "data-keep": true, value: l.name, "aria-label": "Name der Liste",
+            onchange: (e) => e.target.value.trim() && put("lists", { ...l, name: e.target.value.trim() }) }),
+          deleteBtn("l-" + l.id, "✕", () => removeList(l.id))
+        ));
+      } else {
+        g.append(fbtn(l.id, l.name, state.items.filter(i => i.listIds.includes(l.id)).length, "sub"));
+      }
+    });
+    if (ui.manage) {
+      g.append(el("form", { class: "mini", onsubmit: (e) => { e.preventDefault(); const inp = $("nl-" + r.id); addList(r.id, inp.value); inp.value = ""; } },
+        el("input", { id: "nl-" + r.id, "data-keep": true, placeholder: "Neue Liste", "aria-label": "Neue Liste in " + r.name }),
+        el("button", { type: "submit" }, "+")));
+    }
+    sb.append(g);
+  });
+
+  sb.append(el("div", { class: "divider" }));
+  if (ui.manage) {
+    sb.append(el("form", { class: "mini", style: "padding-left:0", onsubmit: (e) => { e.preventDefault(); addRubrik($("nr").value); $("nr").value = ""; } },
+      el("input", { id: "nr", "data-keep": true, placeholder: "Neue Rubrik", "aria-label": "Neue Rubrik" }),
+      el("button", { type: "submit" }, "+")));
+  }
+  sb.append(el("button", { type: "button", class: ui.manage ? "primary" : "", disabled: readOnly,
+    onclick: () => { ui.manage = !ui.manage; ui.armed = null; render(); } },
+    ui.manage ? "Fertig" : "Rubriken & Listen bearbeiten"));
+}
+
+function currentFilter() {
+  if (ui.filter === "all") return { title: "Alle Artikel", eyebrow: "Bestand", test: () => true };
+  if (ui.filter === "none") return { title: "Ohne Liste", eyebrow: "Bestand", test: (i) => !i.listIds.some(id => lookup("lists", id)) };
+  const l = lookup("lists", ui.filter);
+  if (!l) { ui.filter = "all"; return currentFilter(); }
+  const r = lookup("rubriken", l.rubrikId);
+  return { title: l.name, eyebrow: r ? r.name : "Liste", list: l, test: (i) => i.listIds.includes(l.id) };
+}
+
+function listTags(i) {
+  return i.listIds.map(id => lookup("lists", id)).filter(Boolean).map(l => {
+    const r = lookup("rubriken", l.rubrikId);
+    return el("span", { class: "tag" }, r ? el("b", {}, r.name + " · ") : null, l.name);
+  });
+}
+
+function renderStock() {
+  const f = currentFilter();
+  $("filterTitle").textContent = f.title;
+  $("filterEyebrow").textContent = f.eyebrow;
+  $("addItemTitle").textContent = f.list ? `Artikel zu „${f.list.name}“ hinzufügen` : "Artikel hinzufügen";
+  const shown = state.items.filter(f.test).sort(itemComparator());
+  const lowN = shown.filter(isLow).length;
+  $("filterInfo").textContent = `${shown.length} Artikel` + (lowN ? ` · ${lowN} unter Mindestwert` : "");
+
+  const box = $("stockList"); box.replaceChildren();
+  if (!shown.length) {
+    box.append(el("div", { class: "row" }, el("span", { class: "hint" },
+      state.items.length ? "In dieser Liste ist noch nichts. Füge unten einen Artikel hinzu oder ordne einen bestehenden über „Bearbeiten“ zu." : "Noch keine Artikel. Lege unten den ersten an.")));
+    return;
+  }
+  shown.forEach(i => {
+    const sup = lookup("suppliers", i.supplierId);
+    const pct = Math.min(100, (i.stock / Math.max(i.target || i.min || 1, 0.0001)) * 100);
+    box.append(el("div", { class: "row" + (isLow(i) ? " low" : "") },
+      el("div", { class: "meta" },
+        el("span", { class: "name" }, i.name),
+        isLow(i) ? el("span", { class: "chip" + (i.ordered ? " ordered" : "") }, i.ordered ? "bestellt" : "nachbestellen") : null,
+        i.example ? el("span", { class: "chip example" }, "Beispiel") : null,
+        el("span", { class: "limits" }, `min ${fmt(i.min)} · soll ${fmt(i.target)} ${i.unit}`),
+        editButton(i)
+      ),
+      stockCounter(i),
+      el("div", { class: "sub" }, ...listTags(i),
+        i.sortKey ? el("span", { class: "supplier-ref" }, "Sortierung: " + i.sortKey) : null,
+        i.location ? el("span", { class: "supplier-ref" }, "Standort: " + i.location) : null,
+        sup ? el("span", { class: "supplier-ref" }, "Lieferant: " + sup.name) : null,
+        i.price != null ? el("span", { class: "supplier-ref" }, `EK ${euro(i.price)} / ${i.unit}`) : null),
+      el("div", { class: "bar", "aria-hidden": "true" }, el("i", { style: `width:${pct}%` }))
+    ));
+  });
+}
+
+/* ---------- Fenster: Artikel bearbeiten / löschen / Bestellschein ---------- */
+function editButton(i) {
+  return el("button", { class: "ghost", type: "button", disabled: readOnly, onclick: () => openModal(i.id) }, "Bearbeiten");
+}
+function openModal(id, deleting) { ui.importOpen = false; ui.modal = id; ui.deleteStep = deleting ? id : null; ui.slip = null; ui.armed = null; render(); }
+function closeModal() { if (imp.ctl) imp.ctl.abort(); ui.modal = null; ui.deleteStep = null; ui.slip = null; ui.importOpen = false; ui.qrItem = null; ui.armed = null; render(); }
+const canDeleteItems = () => ui.view === "inventar";
+
+function renderModal() {
+  const m = $("modal");
+  let dialog = null;
+  if (ui.importOpen && (ui.view === "bestand" || ui.view === "inventar")) {
+    dialog = importDialog();
+  } else if (ui.qrItem && ui.view === "scan" && lookup("items", ui.qrItem)) {
+    dialog = qrDialog(lookup("items", ui.qrItem));
+  } else if (ui.slip != null && ui.view === "bestellung") {
+    dialog = slipDialog(ui.slip);
+  } else if (ui.modal) {
+    const i = lookup("items", ui.modal);
+    if (i) {
+      const deleting = ui.deleteStep === i.id && canDeleteItems();
+      if (deleting || ui.view !== "inventar") {
+        dialog = el("div", { class: "dialog" + (deleting ? " danger-zone" : ""), role: "dialog", "aria-modal": "true", "aria-labelledby": "dlgTitle" },
+          el("div", { class: "dlg-head" },
+            el("div", {}, el("div", { class: "eyebrow" }, i.name), el("h2", { id: "dlgTitle" }, deleting ? "Artikel löschen" : "Artikel bearbeiten")),
+            el("button", { class: "icon", type: "button", "aria-label": "Fenster schließen", onclick: closeModal }, "✕")),
+          deleting ? deleteConfirm(i) : itemEditForm(i));
+      }
+    }
+  }
+  if (!dialog) {
+    ui.modal = null; ui.deleteStep = null; ui.slip = null; ui.importOpen = false; ui.qrItem = null;
+    if (!m.hidden) { m.hidden = true; m.replaceChildren(); document.documentElement.style.overflow = ""; if (ui.returnFocus) { try { ui.returnFocus.focus(); } catch {} ui.returnFocus = null; } }
+    return;
+  }
+  const wasOpen = !m.hidden;
+  if (!wasOpen) ui.returnFocus = document.activeElement;
+  m.replaceChildren(dialog);
+  m.hidden = false;
+  document.documentElement.style.overflow = "hidden";
+  if (!wasOpen) setTimeout(() => { const f = m.querySelector("input:not([type=hidden]):not([disabled])"); if (f) f.focus(); }, 0);
+}
+
+/* Zusätzlicher Schritt vor dem Löschen: Namen eintippen */
+function deleteConfirm(i) {
+  const listCount = i.listIds.filter(id => lookup("lists", id)).length;
+  const sup = lookup("suppliers", i.supplierId);
+  const where = [listCount ? `in ${listCount} Liste(n)` : null, sup ? `beim Lieferanten ${sup.name}` : null].filter(Boolean).join(" und ");
+  const btn = el("button", { type: "submit", class: "armed", disabled: true }, "Endgültig löschen");
+  const inp = el("input", { id: "delConfirm-" + i.id, "data-keep": true, "data-del-confirm": true, autocomplete: "off", placeholder: i.name,
+    "aria-describedby": "delInfo", oninput: (e) => { btn.disabled = e.target.value.trim() !== i.name.trim(); } });
+  const f = el("form", { class: "confirm" },
+    el("p", { id: "delInfo" }, `Der Artikel „${i.name}“ wird mit Bestand (${fmt(i.stock)} ${i.unit})` + (where ? `, ${where},` : "") + " gelöscht. Das lässt sich nicht rückgängig machen."),
+    el("label", {}, `Zum Bestätigen den Artikelnamen eintippen: ${i.name}`, inp),
+    el("div", { class: "actions dlg-actions" },
+      el("button", { type: "button", onclick: closeModal }, "Abbrechen"),
+      el("span", { class: "spacer" }), btn));
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (inp.value.trim() !== i.name.trim()) return;
+    ui.modal = null; ui.deleteStep = null;
+    del("items", i.id);
+    setStatus(`„${i.name}“ gelöscht.`);
+  });
+  return f;
+}
+
+function itemEditForm(i) {
+  const id = (k) => `ei-${k}-${i.id}`;
+  const supSel = el("select", { id: id("sup"), "data-keep": true, "data-newsup": id("newsup"), onchange: syncNewSupplierFields });
+  fillSupplierSelect(supSel, i.supplierId, true);
+  const rubs = [...state.rubriken].sort(byOrder);
+  const fs = el("fieldset", {}, el("legend", {}, "Taucht in diesen Listen auf"));
+  if (!rubs.length) fs.append(el("span", { class: "hint" }, "Lege zuerst im Bestand eine Rubrik mit Listen an."));
+  rubs.forEach(r => {
+    const lists = state.lists.filter(l => l.rubrikId === r.id).sort(byOrder);
+    if (!lists.length) return;
+    fs.append(el("div", { class: "checks" }, el("span", { class: "rname" }, r.name),
+      ...lists.map(l => el("label", {}, el("input", { type: "checkbox", id: `${id("l")}-${l.id}`, "data-keep": true, "data-list": l.id, checked: i.listIds.includes(l.id) }), l.name))));
+  });
+  const f = el("form", { class: "edit" },
+    el("label", { class: "span2 wide-m" }, "Artikel", el("input", { id: id("name"), "data-keep": true, value: i.name, required: true })),
+    el("label", {}, "Einheit", el("input", { id: id("unit"), "data-keep": true, value: i.unit })),
+    el("label", {}, "Bestand", el("input", { id: id("stock"), "data-keep": true, type: "number", min: 0, step: "any", value: i.stock })),
+    el("label", {}, "Mindest", el("input", { id: id("min"), "data-keep": true, type: "number", min: 0, step: "any", value: i.min })),
+    el("label", {}, "Soll", el("input", { id: id("target"), "data-keep": true, type: "number", min: 0, step: "any", value: i.target })),
+    el("label", { class: "span2" }, "Einkaufspreis €", el("input", { id: id("price"), "data-keep": true, type: "number", min: 0, step: "0.01", inputmode: "decimal", value: i.price ?? "", placeholder: "0,00" })),
+    el("label", { class: "span2" }, "Sortieren nach", el("input", { id: id("sort"), "data-keep": true, value: i.sortKey, placeholder: "z. B. 10 oder Kaffee" })),
+    el("label", { class: "span2 wide-m" }, "Standort", el("input", { id: id("loc"), "data-keep": true, value: i.location, list: "locOptions", placeholder: "z. B. Vorratsschrank" })),
+    el("label", { class: "span3 wide-m" }, "Lieferant", supSel),
+    el("label", { class: "span3 wide-m", hidden: true }, "Neuer Lieferant", el("input", { id: id("newsup"), "data-keep": true, placeholder: "Name des neuen Lieferanten" })),
+    fs,
+    el("div", { class: "span6 actions dlg-actions" },
+      el("button", { class: "primary", type: "submit" }, "Speichern"),
+      el("button", { type: "button", onclick: closeModal }, "Abbrechen"))
+  );
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = (k) => $(id(k)).value;
+    const supplierId = resolveSupplier(v("sup"), v("newsup"));
+    if (supplierId === null) return;
+    const min = num(v("min"));
+    const listIds = [...f.querySelectorAll("input[data-list]")].filter(c => c.checked).map(c => c.dataset.list);
+    const keepHidden = i.listIds.filter(x => !lookup("lists", x));
+    ui.modal = null;
+    patchItem(i, { name: v("name").trim() || i.name, unit: v("unit").trim() || "Stk", stock: num(v("stock")), min,
+      target: Math.max(min, num(v("target"))), price: priceOrNull(v("price")), sortKey: v("sort").trim(),
+      supplierId, location: v("loc").trim(), listIds: [...listIds, ...keepHidden], example: false });
+  });
+  return f;
+}
+
+/* Zähler: − / Zahl direkt eintippen / + */
+function numberField(id, value, label, onCommit, step = "any") {
+  return el("input", {
+    class: "val", id, type: "number", min: 0, step, inputmode: step === "any" ? "decimal" : "numeric", value,
+    "aria-label": label, disabled: readOnly,
+    onchange: (e) => onCommit(num(e.target.value)),
+    onkeydown: (e) => { if (e.key === "Enter") e.target.blur(); },
+    onfocus: (e) => e.target.select()
+  });
+}
+function stockCounter(i, prefix = "st") {
+  return el("div", { class: "counter" },
+    el("button", { class: "icon", type: "button", "aria-label": `${i.name} verringern`, disabled: readOnly || i.stock <= 0, onclick: () => patchItem(i, { stock: Math.max(0, i.stock - 1) }) }, "−"),
+    numberField(`${prefix}-${i.id}`, i.stock, `Bestand ${i.name}`, (v) => v !== i.stock && patchItem(i, { stock: v })),
+    el("span", { class: "unit" }, i.unit),
+    el("button", { class: "icon", type: "button", "aria-label": `${i.name} erhöhen`, disabled: readOnly, onclick: () => patchItem(i, { stock: i.stock + 1 }) }, "+")
+  );
+}
+
+/* ---------- Bestellliste ---------- */
+function orderGroups() {
+  const low = state.items.filter(isLow);
+  const groups = new Map();
+  low.forEach(i => { const k = lookup("suppliers", i.supplierId) ? i.supplierId : "_none"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i); });
+  groups.forEach(rows => rows.sort(bySortKey));
+  const keys = [...groups.keys()].sort((a, b) => a === "_none" ? 1 : b === "_none" ? -1 : bySortKey(lookup("suppliers", a), lookup("suppliers", b)));
+  return { groups, keys };
+}
+
+function orderText(sup, rows) {
+  const lines = rows.map(i => `- ${fmt(orderQty(i))} ${i.unit} ${i.name}`);
+  return (sup ? `Bestellung bei ${sup.name}` : "Bestellung") + "\n\n" + lines.join("\n");
+}
+
+function renderOrders() {
+  const box = $("orderGroups"); box.replaceChildren();
+  if (!state.items.length) { box.append(el("div", { class: "empty" }, "Noch keine Artikel. Lege sie im Reiter „Bestand“ an.")); return; }
+  const { groups, keys } = orderGroups();
+  if (!keys.length) { box.append(el("div", { class: "empty good" }, "Alles auf Lager. Gerade muss nichts bestellt werden.")); return; }
+
+  keys.forEach(k => {
+    const sup = lookup("suppliers", k);
+    const rows = groups.get(k);
+    const open = rows.filter(i => !i.ordered);
+    const text = orderText(sup, open.length ? open : rows);
+    const g = el("div", { class: "group" });
+    g.append(el("div", { class: "group-head" },
+      el("div", {},
+        el("h3", {}, sup ? sup.name : "Ohne Lieferant"),
+        sup ? el("div", { class: "contact" },
+          sup.contact ? el("span", {}, sup.contact) : null,
+          sup.phone ? el("span", {}, sup.phone) : null,
+          sup.email ? el("span", {}, sup.email) : null,
+          sup.payment ? el("span", {}, "Zahlweise: " + sup.payment + (sup.terms ? ", " + sup.terms : "")) : null)
+          : el("div", { class: "contact" }, "Lieferant im Artikel unter „Bearbeiten“ zuweisen")
+      ),
+      el("div", { class: "group-actions" },
+        el("button", { type: "button", class: "primary", onclick: () => openSlip(k) }, "Bestellschein erstellen"),
+        el("button", { type: "button", onclick: async () => {
+          try { await navigator.clipboard.writeText(text); ui.copyFallback = null; setStatus("Bestellung kopiert."); }
+          catch { ui.copyFallback = k; render(); const t = $("copy-" + k); if (t) { t.focus(); t.select(); } }
+        } }, "Text kopieren"),
+        open.length ? el("button", { type: "button", disabled: readOnly, onclick: () => open.forEach(i => patchItem(i, { ordered: true })) }, "Alle als bestellt") : null
+      )
+    ));
+    if (ui.copyFallback === k) {
+      g.append(el("div", { class: "copy-box" }, el("span", { class: "hint" }, "Text markieren und kopieren:"),
+        el("textarea", { class: "copy", id: "copy-" + k, readonly: true }, text)));
+    }
+    rows.forEach(i => g.append(el("div", { class: "order-row" },
+      el("div", {},
+        el("div", { class: "name" }, i.name, " ", i.ordered ? el("span", { class: "chip ordered" }, "bestellt") : null),
+        el("div", { class: "why" }, `Bestand ${fmt(i.stock)} ${i.unit} · Mindest ${fmt(i.min)}` + (i.price != null ? ` · EK ${euro(i.price)}` : "") + " ", editButton(i))),
+      el("span", { class: "qty" }, `${fmt(orderQty(i))} ${i.unit}`),
+      i.ordered
+        ? el("button", { type: "button", disabled: readOnly, onclick: () => patchItem(i, { stock: i.stock + orderQty(i), ordered: false }) }, "Ware eingegangen")
+        : el("button", { type: "button", disabled: readOnly, onclick: () => patchItem(i, { ordered: true }) }, "Als bestellt markieren")
+    )));
+    box.append(g);
+  });
+}
+
+/* ---------- Bestellschein ---------- */
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const deDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? `${m[3]}.${m[2]}.${m[1]}` : iso || ""; };
+
+function openSlip(k) {
+  const d = new Date();
+  ui.importOpen = false;
+  ui.slip = k; ui.modal = null; ui.deleteStep = null;
+  ui.slipNo = `B-${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+  render();
+}
+
+function slipRows(k) {
+  const { groups } = orderGroups();
+  const rows = groups.get(k) || [];
+  const open = rows.filter(i => !i.ordered);
+  return open.length ? open : rows;
+}
+
+function saveSender(field, value) {
+  const s = sender();
+  if (s[field] === value) return;
+  put("settings", { ...s, [field]: value });
+}
+
+function slipDialog(k) {
+  const rows = slipRows(k);
+  if (!rows.length) return null;
+  const sup = lookup("suppliers", k);
+  const s = sender();
+  const sField = (f, label, cls, ph) => el("label", { class: cls }, label, el("input", { id: "sd-" + f, value: s[f], placeholder: ph || "", autocomplete: "off", onchange: (e) => saveSender(f, e.target.value.trim()) }));
+
+  const tbody = el("tbody", {}, ...rows.map((i, n) => el("tr", {},
+    el("td", { class: "num" }, String(n + 1)),
+    el("td", {}, i.name),
+    el("td", { class: "num" }, el("input", { id: "sq-" + i.id, "data-keep": true, type: "number", min: 0, step: "any", value: orderQty(i), class: "qty-in", "aria-label": "Menge " + i.name, oninput: recomputeSlip })),
+    el("td", {}, i.unit),
+    el("td", { class: "num" }, euro(i.price)),
+    el("td", { class: "num", id: "sl-total-" + i.id }, "–")
+  )));
+
+  return el("div", { class: "dialog wide", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlgTitle" },
+    el("div", { class: "dlg-head" },
+      el("div", {}, el("div", { class: "eyebrow" }, sup ? sup.name : "Ohne Lieferant"), el("h2", { id: "dlgTitle" }, "Bestellschein")),
+      el("button", { class: "icon", type: "button", "aria-label": "Fenster schließen", onclick: closeModal }, "✕")),
+    el("div", { class: "slip" },
+      el("div", { class: "slip-cols" },
+        el("fieldset", {}, el("legend", {}, "Besteller (wird gespeichert)"),
+          el("div", { class: "edit", style: "padding-top:0" },
+            sField("name", "Name / Firma", "span6"), sField("street", "Straße und Nr.", "span3 wide-m"), sField("city", "PLZ und Ort", "span3 wide-m"),
+            sField("phone", "Telefon", "span3 wide-m"), sField("email", "E-Mail", "span3 wide-m"))),
+        el("fieldset", {}, el("legend", {}, "Lieferant"),
+          sup ? el("div", { class: "addr" },
+            el("b", {}, sup.name),
+            sup.contact ? el("span", {}, "z. Hd. " + sup.contact) : null,
+            sup.street ? el("span", {}, sup.street) : null,
+            sup.city ? el("span", {}, sup.city) : null,
+            sup.customerNo ? el("span", { class: "muted" }, "Unsere Kunden-Nr.: " + sup.customerNo) : null,
+            (!sup.street || !sup.city) ? el("span", { class: "hint" }, "Tipp: Anschrift beim Lieferanten ergänzen, dann steht sie auf dem Bestellschein.") : null)
+            : el("span", { class: "hint" }, "Diese Artikel haben noch keinen Lieferanten."))
+      ),
+      el("div", { class: "edit", style: "padding-top:0" },
+        el("label", { class: "span2" }, "Bestell-Nr.", el("input", { id: "sl-no", "data-keep": true, value: ui.slipNo })),
+        el("label", { class: "span2" }, "Datum", el("input", { id: "sl-date", "data-keep": true, type: "date", value: todayIso() })),
+        el("label", { class: "span2 wide-m" }, "Liefertermin", el("input", { id: "sl-due", "data-keep": true, placeholder: "z. B. bis 31.10." })),
+        el("label", { class: "span6" }, "Bemerkung", el("input", { id: "sl-note", "data-keep": true, placeholder: "z. B. Bitte an den Hintereingang liefern" }))),
+      el("div", { class: "table-wrap" },
+        el("table", { class: "slip-table" },
+          el("thead", {}, el("tr", {}, el("th", { class: "num" }, "Pos."), el("th", {}, "Artikel"), el("th", { class: "num" }, "Menge"), el("th", {}, "Einheit"), el("th", { class: "num" }, "Einzelpreis"), el("th", { class: "num" }, "Gesamt"))),
+          tbody,
+          el("tfoot", {}, el("tr", {}, el("td", { colspan: 5, class: "num" }, "Summe"), el("td", { class: "num", id: "sl-sum" }, "–"))))),
+      el("p", { class: "hint" }, "Die Mengen kannst du hier noch anpassen. Preise kommen aus dem Einkaufspreis des Artikels."),
+      el("p", { class: "status", id: "slipMsg", hidden: true }),
+      el("div", { class: "actions dlg-actions" },
+        el("button", { type: "button", class: "primary", onclick: () => exportSlip(k) }, "Als PDF speichern"),
+        el("button", { type: "button", disabled: readOnly, onclick: () => { slipRows(k).filter(i => !i.ordered).forEach(i => patchItem(i, { ordered: true })); slipMsg("Positionen als bestellt markiert."); } }, "Als bestellt markieren"),
+        el("span", { class: "spacer" }),
+        el("button", { type: "button", onclick: closeModal }, "Schließen")))
+  );
+}
+
+function slipMsg(text, err) { const m = $("slipMsg"); if (!m) return; m.textContent = text; m.hidden = !text; m.classList.toggle("err", !!err); }
+
+function slipLines(k) {
+  return slipRows(k).map(i => {
+    const q = $("sq-" + i.id) ? num($("sq-" + i.id).value) : orderQty(i);
+    return { item: i, qty: q, total: i.price != null ? Math.round(q * i.price * 100) / 100 : null };
+  }).filter(l => l.qty > 0);
+}
+
+function recomputeSlip() {
+  if (ui.slip == null) return;
+  let sum = 0, missing = false;
+  slipRows(ui.slip).forEach(i => {
+    const cell = $("sl-total-" + i.id); if (!cell) return;
+    const q = $("sq-" + i.id) ? num($("sq-" + i.id).value) : 0;
+    if (i.price == null) { cell.textContent = "–"; if (q > 0) missing = true; return; }
+    const t = q * i.price; sum += t; cell.textContent = euro(t);
+  });
+  const s = $("sl-sum"); if (s) s.textContent = euro(sum) + (missing ? " *" : "");
+}
+
+let pdfLibPromise = null;
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("load")); document.head.append(s); });
+}
+function ensurePdfLib() {
+  if (!pdfLibPromise) {
+    pdfLibPromise = (async () => {
+      if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      if (!window.jspdf.jsPDF.API.autoTable) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+    })().catch(e => { pdfLibPromise = null; throw e; });
+  }
+  return pdfLibPromise;
+}
+
+function buildSlipPdf(k) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const sup = lookup("suppliers", k);
+  const s = sender();
+  const lines = slipLines(k);
+  const no = $("sl-no")?.value.trim() || ui.slipNo;
+  const date = deDate($("sl-date")?.value || todayIso());
+  const due = $("sl-due")?.value.trim() || "";
+  const note = $("sl-note")?.value.trim() || "";
+  const L = 20, R = 190;
+  const ink = [27, 37, 48], muted = [93, 107, 122], accent = [44, 93, 143];
+
+  // Absender oben rechts
+  doc.setTextColor(...ink);
+  let y = 20;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+  if (s.name) { doc.text(s.name, R, y, { align: "right" }); y += 5; }
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...muted);
+  [s.street, s.city, s.phone ? "Tel. " + s.phone : "", s.email].filter(Boolean).forEach(t => { doc.text(t, R, y, { align: "right" }); y += 4.5; });
+
+  // Titel
+  doc.setTextColor(...accent); doc.setFont("helvetica", "bold"); doc.setFontSize(22);
+  doc.text("Bestellschein", L, 30);
+
+  // Absenderzeile + Empfänger
+  y = 50;
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...muted);
+  const senderLine = [s.name, s.street, s.city].filter(Boolean).join(" · ");
+  if (senderLine) { doc.text(senderLine, L, y); doc.setDrawColor(...muted); doc.setLineWidth(0.1); doc.line(L, y + 1, L + Math.min(85, doc.getTextWidth(senderLine)), y + 1); }
+  y += 7;
+  doc.setTextColor(...ink); doc.setFontSize(10.5);
+  const recip = sup ? [sup.name, sup.contact ? "z. Hd. " + sup.contact : "", sup.street, sup.city].filter(Boolean) : ["Lieferant noch nicht festgelegt"];
+  recip.forEach((t, n) => { doc.setFont("helvetica", n === 0 ? "bold" : "normal"); doc.text(t, L, y); y += 5.2; });
+
+  // Bestelldaten rechts
+  const info = [["Bestell-Nr.", no], ["Datum", date], sup?.customerNo ? ["Kunden-Nr.", sup.customerNo] : null, due ? ["Liefertermin", due] : null].filter(Boolean);
+  let iy = 57;
+  doc.setFontSize(9.5);
+  info.forEach(([a, b]) => { doc.setFont("helvetica", "normal"); doc.setTextColor(...muted); doc.text(a, 128, iy); doc.setTextColor(...ink); doc.setFont("helvetica", "bold"); doc.text(String(b), R, iy, { align: "right" }); iy += 5.5; });
+
+  y = Math.max(y, iy) + 10;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(...ink);
+  doc.text("Sehr geehrte Damen und Herren,", L, y); y += 5.5;
+  doc.text("hiermit bestellen wir die folgenden Artikel:", L, y); y += 5;
+
+  let sum = 0, missing = false;
+  const body = lines.map((l, n) => {
+    if (l.total == null) missing = true; else sum += l.total;
+    return [String(n + 1), l.item.name, fmt(l.qty), l.item.unit, euro(l.item.price), euro(l.total)];
+  });
+  doc.autoTable({
+    startY: y,
+    margin: { left: L, right: 210 - R },
+    head: [["Pos.", "Artikel", "Menge", "Einheit", "Einzelpreis", "Gesamt"]],
+    body,
+    foot: [["", "", "", "", "Summe", euro(sum) + (missing ? " *" : "")]],
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 9.5, cellPadding: 2.2, textColor: ink, lineColor: [211, 218, 226], lineWidth: 0.2 },
+    headStyles: { fillColor: accent, textColor: 255, fontStyle: "bold" },
+    footStyles: { fillColor: [238, 241, 244], textColor: ink, fontStyle: "bold" },
+    columnStyles: { 0: { halign: "right", cellWidth: 12 }, 2: { halign: "right", cellWidth: 18 }, 3: { cellWidth: 20 }, 4: { halign: "right", cellWidth: 28 }, 5: { halign: "right", cellWidth: 28 } },
+    didParseCell: (d) => { if (d.section !== "body" && d.column.index >= 4) d.cell.styles.halign = "right"; if (d.section === "head" && [0, 2].includes(d.column.index)) d.cell.styles.halign = "right"; }
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  doc.setFontSize(9.5); doc.setTextColor(...ink);
+  const extra = [
+    missing ? "* Für einzelne Artikel ist kein Einkaufspreis hinterlegt; die Summe ist unvollständig." : null,
+    sup?.payment ? `Zahlweise: ${sup.payment}${sup.terms ? ", Zahlungsziel: " + sup.terms : ""}` : (sup?.terms ? "Zahlungsziel: " + sup.terms : null),
+    due ? "Gewünschter Liefertermin: " + due : null,
+    note ? "Bemerkung: " + note : null,
+    "Bitte bestätigen Sie uns die Bestellung."
+  ].filter(Boolean);
+  extra.forEach(t => { const w = doc.splitTextToSize(t, R - L); if (y + w.length * 5 > 270) { doc.addPage(); y = 20; } doc.text(w, L, y); y += w.length * 5; });
+
+  y += 18; if (y > 275) { doc.addPage(); y = 40; }
+  doc.setDrawColor(...ink); doc.setLineWidth(0.3); doc.line(L, y, L + 75, y);
+  doc.setFontSize(8.5); doc.setTextColor(...muted); doc.text("Datum, Unterschrift", L, y + 4.5);
+
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(...muted); doc.text(`Bestellschein ${no} · Seite ${p} von ${pages}`, 105, 290, { align: "center" }); }
+  return { doc, no };
+}
+
+async function exportSlip(k) {
+  if (!slipLines(k).length) { slipMsg("Alle Mengen sind 0. Trage mindestens eine Menge ein.", true); return; }
+  slipMsg("PDF wird erstellt …");
+  try { await ensurePdfLib(); }
+  catch { slipMsg("Das PDF-Werkzeug konnte nicht geladen werden. Prüfe die Internetverbindung und versuche es noch einmal.", true); return; }
+  try {
+    const { doc, no } = buildSlipPdf(k);
+    const sup = lookup("suppliers", k);
+    const safe = (t) => t.replace(/[^\p{L}\p{N}._-]+/gu, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    const filename = `Bestellschein_${safe(no) || "neu"}${sup ? "_" + safe(sup.name) : ""}.pdf`;
+    await savePdfFile(doc, filename);
+    slipMsg(`Gespeichert als ${filename}. Zum Drucken die Datei öffnen und drucken.`);
+  } catch (e) {
+    const code = e && e.code;
+    if (code === "declined") slipMsg("Speichern abgebrochen.");
+    else if (code === "rate_limited") slipMsg("Es ist schon ein Speichern-Fenster offen. Bitte zuerst das beantworten.", true);
+    else if (code === "unavailable" || code === "not_granted" || code === "capability_disabled" || code === "capability_removed" || code === "extension_not_enabled") slipMsg("PDF-Speichern ist in dieser Ansicht nicht verfügbar. Öffne die Seite in der Claude-App oder auf claude.ai.", true);
+    else slipMsg("Das PDF konnte nicht erstellt werden. Bitte noch einmal versuchen.", true);
+  }
+}
+
+/* ---------- Lieferanten ---------- */
+function webHref(w) { const t = w.trim(); if (!t) return null; const u = /^https?:\/\//i.test(t) ? t : "https://" + t; return /^https?:\/\/[^\s]+$/i.test(u) ? u : null; }
+
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); setStatus(okMsg); }
+  catch { setStatus("Kopieren ging nicht. Bitte den Text markieren und selbst kopieren.", true); }
+}
+
+function renderSuppliers() {
+  const box = $("supplierList"); box.replaceChildren();
+  const sups = [...state.suppliers].sort(supComparator());
+  if (!sups.length) { box.append(el("div", { class: "row" }, el("span", { class: "hint" }, "Noch keine Lieferanten. Lege unten den ersten an."))); return; }
+  sups.forEach(s => {
+    const items = state.items.filter(i => i.supplierId === s.id).sort(itemComparator());
+    const editing = ui.editing === "sup:" + s.id;
+    const adding = ui.editing === "supitems:" + s.id;
+    const href = webHref(s.website);
+    const hasBank = s.iban || s.bic || s.bank || s.accountHolder;
+    const row = el("div", { class: "row" },
+      el("div", { class: "meta" },
+        el("span", { class: "name" }, s.name),
+        s.payment ? el("span", { class: "chip kind" }, s.payment) : null,
+        s.example ? el("span", { class: "chip example" }, "Beispiel") : null,
+        s.sortKey ? el("span", { class: "limits" }, "Sortierung: " + s.sortKey) : null,
+        el("button", { class: "ghost", type: "button", disabled: readOnly, onclick: () => { ui.editing = editing ? null : "sup:" + s.id; ui.armed = null; render(); } }, editing ? "Schließen" : "Bearbeiten")),
+      el("span", { class: "limits" }, `${items.length} Artikel`),
+      el("div", { class: "sub" }, el("div", { class: "detail" },
+        s.contact ? el("span", {}, s.contact) : null,
+        s.phone ? el("span", {}, s.phone) : null,
+        s.email ? el("span", {}, s.email) : null,
+        (s.street || s.city) ? el("span", {}, [s.street, s.city].filter(Boolean).join(", ")) : null,
+        href ? el("a", { href, target: "_blank", rel: "noopener" }, s.website.replace(/^https?:\/\//i, "")) : null,
+        s.customerNo ? el("span", {}, "Kunden-Nr.: " + s.customerNo) : null,
+        s.terms ? el("span", {}, "Zahlungsziel: " + s.terms) : null,
+        s.note ? el("span", {}, s.note) : null)),
+      hasBank ? el("div", { class: "sub" }, el("div", { class: "detail bank" },
+        s.accountHolder ? el("span", {}, s.accountHolder) : null,
+        s.iban ? el("span", {}, "IBAN " + fmtIban(s.iban)) : null,
+        s.bic ? el("span", {}, "BIC " + s.bic.toUpperCase()) : null,
+        s.bank ? el("span", {}, s.bank) : null,
+        s.iban ? el("button", { class: "ghost", type: "button", onclick: () => copyText(s.iban.replace(/\s+/g, ""), "IBAN kopiert.") }, "IBAN kopieren") : null)) : null,
+      el("div", { class: "sub" },
+        ...items.map(i => el("button", { type: "button", class: "tag tag-btn", title: "Artikel bearbeiten", disabled: readOnly, onclick: () => openModal(i.id) }, i.name)),
+        el("button", { class: "ghost", type: "button", disabled: readOnly, onclick: () => { ui.editing = adding ? null : "supitems:" + s.id; ui.armed = null; render(); } }, adding ? "Schließen" : "+ Artikel hinzufügen"))
+    );
+    if (editing) row.append(supplierEditForm(s));
+    if (adding) row.append(supplierItemsPanel(s));
+    box.append(row);
+  });
+}
+
+function supplierItemsPanel(s) {
+  const id = (k) => `sp-${k}-${s.id}`;
+  const others = state.items.filter(i => i.supplierId !== s.id).sort((a, b) => cmpText(a.name, b.name));
+  const panel = el("div", { class: "panel" });
+
+  if (others.length) {
+    const sel = el("select", { id: id("pick"), "data-keep": true },
+      ...others.map(i => { const cur = lookup("suppliers", i.supplierId); return el("option", { value: i.id }, i.name + (cur ? ` (bisher: ${cur.name})` : "")); }));
+    const f = el("form", {},
+      el("label", { class: "span3 wide-m" }, "Bestehenden Artikel zuordnen", sel),
+      el("div", { class: "span3 wide-m actions" }, el("button", { type: "submit" }, "Zuordnen")));
+    f.addEventListener("submit", (e) => { e.preventDefault(); const it = lookup("items", sel.value); if (it) patchItem(it, { supplierId: s.id }); });
+    panel.append(f);
+  }
+
+  const nf = el("form", {},
+    el("label", { class: "span2 wide-m" }, "Neuer Artikel", el("input", { id: id("name"), "data-keep": true, required: true, placeholder: "z. B. Espressobohnen" })),
+    el("label", {}, "Einheit", el("input", { id: id("unit"), "data-keep": true, value: "Stk" })),
+    el("label", {}, "Bestand", el("input", { id: id("stock"), "data-keep": true, type: "number", min: 0, step: "any", value: 0 })),
+    el("label", {}, "Mindest", el("input", { id: id("min"), "data-keep": true, type: "number", min: 0, step: "any", value: 1 })),
+    el("label", {}, "Soll", el("input", { id: id("target"), "data-keep": true, type: "number", min: 0, step: "any", value: 3 })),
+    el("label", { class: "span2" }, "Einkaufspreis €", el("input", { id: id("price"), "data-keep": true, type: "number", min: 0, step: "0.01", inputmode: "decimal", placeholder: "0,00" })),
+    el("label", { class: "span2" }, "Sortieren nach", el("input", { id: id("sort"), "data-keep": true })),
+    el("div", { class: "span2 wide-m actions", style: "justify-content:end" }, el("button", { class: "primary", type: "submit" }, "Artikel anlegen")));
+  nf.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = $(id("name")).value.trim(); if (!name) return;
+    const min = num($(id("min")).value);
+    put("items", { id: store.newId("items"), name, unit: $(id("unit")).value.trim() || "Stk", stock: num($(id("stock")).value), min,
+      target: Math.max(min, num($(id("target")).value)), ordered: false, listIds: [], supplierId: s.id, location: "",
+      price: priceOrNull($(id("price")).value), sortKey: $(id("sort")).value.trim() });
+    $(id("name")).value = ""; $(id("price")).value = ""; $(id("sort")).value = ""; $(id("name")).focus();
+  });
+  panel.append(nf);
+  return panel;
+}
+
+function paymentSelect(id, value, keep) {
+  const sel = el("select", { id, "data-keep": keep || null }, el("option", { value: "" }, "– nicht festgelegt –"), ...PAYMENTS.map(p => el("option", { value: p }, p)));
+  if (value && !PAYMENTS.includes(value)) sel.append(el("option", { value }, value));
+  sel.value = value || "";
+  return sel;
+}
+
+function supplierEditForm(s) {
+  const id = (k) => `es-${k}-${s.id}`;
+  const field = (k, label, cls, type = "text") => el("label", { class: cls }, label, el("input", { id: id(k), "data-keep": true, type, value: s[k] }));
+  const f = el("form", { class: "edit" },
+    field("name", "Name", "span2 wide-m"), field("contact", "Ansprechpartner", "span2"), field("phone", "Telefon", "span2", "tel"),
+    field("email", "E-Mail", "span2 wide-m", "email"), field("street", "Straße und Nr.", "span2 wide-m"), field("city", "PLZ und Ort", "span2 wide-m"),
+    field("website", "Website", "span2 wide-m"), field("customerNo", "Unsere Kunden-Nr.", "span2"), field("sortKey", "Sortieren nach", "span2"),
+    el("label", { class: "span2 wide-m" }, "Zahlweise", paymentSelect(id("payment"), s.payment, true)),
+    field("terms", "Zahlungsziel", "span2 wide-m"), field("note", "Notiz", "span2 wide-m"),
+    el("fieldset", {}, el("legend", {}, "Bankverbindung"),
+      el("div", { class: "edit", style: "padding-top:0" },
+        field("accountHolder", "Kontoinhaber", "span3 wide-m"), field("bank", "Bank", "span3 wide-m"),
+        field("iban", "IBAN", "span3 wide-m"), field("bic", "BIC", "span3 wide-m"))),
+    el("div", { class: "span6 actions" },
+      el("button", { class: "primary", type: "submit" }, "Speichern"),
+      deleteBtn("sup-" + s.id, "Lieferant löschen", () => { ui.editing = null; removeSupplier(s.id); })));
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = (k) => $(id(k)).value.trim();
+    ui.editing = null;
+    put("suppliers", { ...s, name: v("name") || s.name, contact: v("contact"), phone: v("phone"), email: v("email"), website: v("website"), note: v("note"),
+      street: v("street"), city: v("city"), customerNo: v("customerNo"), sortKey: v("sortKey"),
+      payment: v("payment"), terms: v("terms"), accountHolder: v("accountHolder"), bank: v("bank"), iban: fmtIban(v("iban")), bic: v("bic").toUpperCase(), example: false });
+  });
+  return f;
+}
+
+/* ---------- Inventar ---------- */
+function renderInventory() {
+  const filter = ui.invFilter || "alle";
+  document.querySelectorAll("#invFilter button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === filter)));
+  $("invItemsSec").hidden = filter === "geraete";
+  $("invGoodsSec").hidden = filter === "artikel";
+  renderInvTable();
+  renderGoods();
+}
+
+function renderInvTable() {
+  const t = $("invTable"); t.replaceChildren();
+  const items = [...state.items].sort(itemComparator());
+  t.append(el("thead", {}, el("tr", {},
+    el("th", {}, "Artikel"), el("th", {}, "Lieferant"), el("th", { class: "num" }, "Einkaufspreis"), el("th", { class: "num" }, "Soll / Haben"), el("th", {}, el("span", { class: "sr" }, "Aktion")))));
+  if (!items.length) {
+    t.append(el("tbody", {}, el("tr", {}, el("td", { colspan: 5, class: "hint" }, "Noch keine Artikel. Lege unten den ersten an."))));
+    return;
+  }
+  let value = 0, missing = 0;
+  const tb = el("tbody", {}, ...items.map(i => {
+    if (i.price == null) missing++; else value += i.price * i.stock;
+    const sel = el("select", { id: "invsup-" + i.id, "aria-label": "Lieferant für " + i.name, disabled: readOnly,
+      onchange: (e) => patchItem(i, { supplierId: e.target.value }) });
+    fillSupplierSelect(sel, i.supplierId, false);
+    const price = el("input", { id: "invprice-" + i.id, type: "number", min: 0, step: "0.01", inputmode: "decimal", value: i.price ?? "", placeholder: "0,00",
+      "aria-label": "Einkaufspreis für " + i.name, disabled: readOnly, class: "price-in",
+      onchange: (e) => { const p = priceOrNull(e.target.value); if (p !== i.price) patchItem(i, { price: p }); },
+      onkeydown: (e) => { if (e.key === "Enter") e.target.blur(); } });
+    return el("tr", { class: isLow(i) ? "low" : "" },
+      el("td", {}, el("div", { class: "cell-name" }, el("span", { class: "name" }, i.name),
+        isLow(i) ? el("span", { class: "chip" + (i.ordered ? " ordered" : "") }, i.ordered ? "bestellt" : "nachbestellen") : null,
+        i.example ? el("span", { class: "chip example" }, "Beispiel") : null)),
+      el("td", {}, sel),
+      el("td", { class: "num" }, el("div", { class: "price-cell" }, price, el("span", { class: "unit" }, "€ / " + i.unit))),
+      el("td", { class: "num soll-haben" }, `${fmt(i.target)} / `, el("b", {}, fmt(i.stock)), ` ${i.unit}`),
+      el("td", { class: "num" }, el("button", { type: "button", class: "ghost danger", disabled: readOnly, onclick: () => openModal(i.id, true) }, "Löschen …"))
+    );
+  }));
+  t.append(tb, el("tfoot", {}, el("tr", {},
+    el("td", { colspan: 3 }, "Warenwert (Haben × Einkaufspreis)" + (missing ? ` · ${missing} ohne Preis` : "")),
+    el("td", { class: "num" }, el("b", {}, euro(value))), el("td", {}))));
+}
+
+function renderGoods() {
+  const box = $("invList"); box.replaceChildren();
+  if (!state.inventory.length) { box.append(el("div", { class: "row" }, el("span", { class: "hint" }, "Noch keine Gegenstände. Wähle unten „Gegenstand“ als Art."))); return; }
+  const locs = [...new Set(state.inventory.map(e => e.location).filter(Boolean))].sort(cmpText);
+  [...locs, ""].forEach(loc => {
+    const rows = state.inventory.filter(e => e.location === loc).sort((a, b) => cmpText(a.name, b.name));
+    if (!rows.length) return;
+    box.append(el("div", { class: "loc-head" }, loc || "Ohne Standort"));
+    rows.forEach(x => box.append(invRow(x)));
+  });
+}
+
+function invRow(it) {
+  const editing = ui.editing === "inv:" + it.id;
+  const row = el("div", { class: "row" },
+    el("div", { class: "meta" },
+      el("span", { class: "name" }, it.name),
+      el("span", { class: "chip cond" + (it.condition === "defekt" ? " defekt" : "") }, it.condition),
+      it.example ? el("span", { class: "chip example" }, "Beispiel") : null,
+      el("button", { class: "ghost", type: "button", disabled: readOnly, onclick: () => { ui.editing = editing ? null : "inv:" + it.id; ui.armed = null; render(); } }, editing ? "Schließen" : "Bearbeiten")),
+    el("div", { class: "counter" },
+      el("button", { class: "icon", type: "button", "aria-label": `${it.name} verringern`, disabled: readOnly || it.qty <= 0, onclick: () => put("inventory", { ...it, qty: Math.max(0, it.qty - 1) }) }, "−"),
+      numberField("iq-" + it.id, it.qty, `Anzahl ${it.name}`, (v) => v !== it.qty && put("inventory", { ...it, qty: v }), "1"),
+      el("span", { class: "unit" }, "Stk"),
+      el("button", { class: "icon", type: "button", "aria-label": `${it.name} erhöhen`, disabled: readOnly, onclick: () => put("inventory", { ...it, qty: it.qty + 1 }) }, "+")),
+    it.note ? el("div", { class: "sub" }, it.note) : null
+  );
+  if (editing) row.append(invEditForm(it));
+  return row;
+}
+
+function invEditForm(it) {
+  const id = (k) => `ev-${k}-${it.id}`;
+  const cond = el("select", { id: id("cond"), "data-keep": true }, ...["neu", "gut", "gebraucht", "defekt"].map(c => el("option", { value: c }, c)));
+  cond.value = it.condition;
+  const f = el("form", { class: "edit" },
+    el("label", { class: "span2 wide-m" }, "Gegenstand", el("input", { id: id("name"), "data-keep": true, value: it.name, required: true })),
+    el("label", {}, "Anzahl", el("input", { id: id("qty"), "data-keep": true, type: "number", min: 0, step: 1, value: it.qty })),
+    el("label", {}, "Zustand", cond),
+    el("label", { class: "span2 wide-m" }, "Standort", el("input", { id: id("loc"), "data-keep": true, value: it.location, list: "locOptions" })),
+    el("label", { class: "span6" }, "Notiz", el("input", { id: id("note"), "data-keep": true, value: it.note })),
+    el("div", { class: "span6 actions" },
+      el("button", { class: "primary", type: "submit" }, "Speichern"),
+      deleteBtn("inv-" + it.id, "Gegenstand löschen", () => { ui.editing = null; del("inventory", it.id); })));
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = (k) => $(id(k)).value.trim();
+    ui.editing = null;
+    put("inventory", { ...it, name: v("name") || it.name, qty: num(v("qty")), condition: v("cond"), location: v("loc"), note: v("note"), example: false });
+  });
+  return f;
+}
+
+/* ---------- Import: CSV, PDF, Foto ---------- */
+const imp = { stage: "pick", rows: [], source: "", note: "", error: "", ctl: null, mode: "replace", listId: "", defMin: 1, defTarget: 3, csvText: "" };
+
+function openImport() {
+  Object.assign(imp, { stage: "pick", rows: [], source: "", note: "", error: "", ctl: null, csvText: "" });
+  const f = currentFilter();
+  imp.listId = ui.view === "bestand" && f.list ? f.list.id : "";
+  ui.importOpen = true; ui.modal = null; ui.slip = null; ui.deleteStep = null;
+  render();
+}
+
+function parseNumDE(v) {
+  if (v == null) return null;
+  if (typeof v === "number") return isFinite(v) && v >= 0 ? v : null;
+  let t = String(v).replace(/\s|€|EUR/gi, "");
+  if (!t) return null;
+  if (t.includes(",") && t.includes(".")) t = t.lastIndexOf(",") > t.lastIndexOf(".") ? t.replace(/\./g, "").replace(",", ".") : t.replace(/,/g, "");
+  else if (t.includes(",")) t = t.replace(",", ".");
+  const n = parseFloat(t.replace(/[^0-9.\-]/g, ""));
+  return isFinite(n) && n >= 0 ? n : null;
+}
+
+function parseCsv(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/).find(l => l.trim()) || "";
+  const delim = [";", "\t", ",", "|"].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
+}
+
+const FIELD_SYNONYMS = {
+  name: ["artikel", "name", "bezeichnung", "produkt", "artikelname", "artikelbezeichnung", "beschreibung", "item", "product", "ware"],
+  quantity: ["bestand", "menge", "anzahl", "haben", "ist", "istbestand", "stück", "stk", "stock", "qty", "quantity", "lagerbestand"],
+  unit: ["einheit", "me", "mengeneinheit", "unit", "ve"],
+  min: ["mindest", "mindestbestand", "min", "meldebestand", "minimum"],
+  target: ["soll", "sollbestand", "max", "maximum", "zielbestand", "target", "höchstbestand"],
+  price: ["preis", "ek", "einkaufspreis", "einzelpreis", "ekpreis", "price", "netto", "stückpreis", "preisjeeinheit"],
+  supplier: ["lieferant", "supplier", "händler", "vendor", "bezugsquelle", "anbieter"],
+  location: ["standort", "lagerort", "ort", "location", "lager", "platz", "regal"],
+  sortKey: ["sortierennach", "sortieren", "sortierung", "sort", "artikelnummer", "artnr", "nr", "nummer", "sku", "position", "pos"]
+};
+const normHead = (h) => h.toLowerCase().replace(/[^a-zäöüß0-9]/g, "");
+
+function csvToRows(table) {
+  if (!table.length) return { rows: [], mapped: [] };
+  const head = table[0].map(normHead);
+  const map = {};
+  for (const [field, syns] of Object.entries(FIELD_SYNONYMS)) {
+    const idx = head.findIndex((h, n) => !Object.values(map).includes(n) && syns.some(s => h === s));
+    const loose = idx >= 0 ? idx : head.findIndex((h, n) => !Object.values(map).includes(n) && h.length > 1 && syns.some(s => s.length > 3 && h.includes(s)));
+    if (loose >= 0) map[field] = loose;
+  }
+  if (map.name == null) return null;
+  const rows = table.slice(1).map(r => ({
+    name: r[map.name] || "",
+    quantity: map.quantity != null ? parseNumDE(r[map.quantity]) : null,
+    unit: map.unit != null ? r[map.unit] : "",
+    price: map.price != null ? parseNumDE(r[map.price]) : null,
+    supplier: map.supplier != null ? r[map.supplier] : "",
+    min: map.min != null ? parseNumDE(r[map.min]) : null,
+    target: map.target != null ? parseNumDE(r[map.target]) : null,
+    location: map.location != null ? r[map.location] : "",
+    sortKey: map.sortKey != null ? r[map.sortKey] : ""
+  })).filter(r => r.name);
+  const labels = { name: "Artikel", quantity: "Menge", unit: "Einheit", price: "Preis", supplier: "Lieferant", min: "Mindest", target: "Soll", location: "Standort", sortKey: "Sortieren nach" };
+  return { rows, mapped: Object.keys(map).map(k => `${labels[k]} ← „${table[0][map[k]]}“`) };
+}
+
+function cleanRows(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 300).map(r => ({
+    include: true,
+    name: String(r?.name ?? "").trim().slice(0, 120),
+    quantity: parseNumDE(r?.quantity),
+    unit: String(r?.unit ?? "").trim().slice(0, 20),
+    price: (() => { const p = parseNumDE(r?.price); return p == null ? null : Math.round(p * 100) / 100; })(),
+    supplier: String(r?.supplier ?? "").trim().slice(0, 80),
+    min: parseNumDE(r?.min),
+    target: parseNumDE(r?.target),
+    location: String(r?.location ?? "").trim().slice(0, 60),
+    sortKey: String(r?.sortKey ?? "").trim().slice(0, 40)
+  })).filter(r => r.name);
+}
+
+function importPrompt(kind, text) {
+  const sups = state.suppliers.map(s => s.name).slice(0, 80);
+  return [
+    `Du bekommst ${kind}. Es kann eine Bestandsliste, ein Lieferschein, eine Rechnung, ein Kassenbon, eine Inventurliste oder ein Foto von Waren sein.`,
+    "Lies alle einzelnen Artikel heraus.",
+    'Antworte nur mit JSON in dieser Form: {"items":[{"name":"Kaffeebohnen","quantity":2,"unit":"kg","price":12.5,"supplier":null,"min":null,"target":null,"location":null,"sortKey":null}],"note":"kurzer Hinweis auf Deutsch, falls etwas unklar war, sonst leer"}',
+    "Regeln:",
+    "- name: Artikelbezeichnung, so wie sie im Dokument steht, ohne Artikelnummer.",
+    "- quantity: Menge bzw. Bestand als Zahl. Auf einem Foto von Waren: die Anzahl der sichtbaren Stück.",
+    "- unit: Einheit wie Stk, kg, l, Packung, Karton. Wenn unbekannt: Stk.",
+    "- price: Einzelpreis pro Einheit in Euro als Zahl (Punkt als Dezimaltrennzeichen). Nicht den Gesamtpreis einer Zeile.",
+    "- supplier: Lieferant oder Händler, falls erkennbar (z. B. Absender der Rechnung).",
+    "- sortKey: Artikelnummer, falls vorhanden.",
+    "- Zeilen für Summen, Zwischensummen, MwSt., Versand, Pfand-Rückgabe, Rabatte oder Zahlungen weglassen.",
+    "- Nichts erfinden. Unbekannte Werte sind null.",
+    sups.length ? `Bereits angelegte Lieferanten (bei Übereinstimmung genau diesen Namen verwenden): ${sups.join(", ")}` : "",
+    text ? `\nInhalt:\n"""\n${text}\n"""` : ""
+  ].filter(Boolean).join("\n");
+}
+
+async function askClaudeForRows(prompt, images) {
+  imp.ctl = new AbortController();
+  let res;
+  try { res = await askAiJson(prompt, images, imp.ctl.signal); } finally { imp.ctl = null; }
+  const list = Array.isArray(res) ? res : res?.items;
+  return { rows: cleanRows(list), note: typeof res?.note === "string" ? res.note : "" };
+}
+
+function sampleErrorText(e) {
+  switch (e && e.code) {
+    case "not_available": case "not_granted": case "sampling_disabled": case "not_declared": case "capability_disabled": case "capability_removed":
+      return sb ? "Die Belegerkennung ist noch nicht eingerichtet (Anleitung, Schritt 6). CSV-Dateien funktionieren trotzdem." : "PDFs und Fotos lassen sich erst auslesen, wenn Supabase eingerichtet ist. CSV-Dateien funktionieren schon.";
+    case "images_unavailable": return "Bilder können gerade nicht ausgelesen werden.";
+    case "image_rejected": return "Das Bild konnte nicht gelesen werden. Nimm ein JPEG oder PNG (Fotos vom iPhone ggf. als JPEG speichern).";
+    case "rate_limited": return "Gerade zu viele Anfragen. Bitte in ein paar Minuten noch einmal versuchen.";
+    case "prompt_too_large": return "Die Datei ist zu groß. Teile sie auf oder importiere weniger Seiten.";
+    case "invalid_json": case "empty_completion": return "Claude konnte keine Artikel herauslesen. Versuche ein schärferes Foto oder eine andere Datei.";
+    case "refused": return "Claude hat diese Datei abgelehnt.";
+    case "session_expired": return "Bitte melde dich neu an und versuche es dann noch einmal.";
+    default: return "Das Auslesen hat nicht geklappt. Bitte noch einmal versuchen.";
+  }
+}
+
+let pdfJsPromise = null;
+function ensurePdfJs() {
+  if (!pdfJsPromise) {
+    pdfJsPromise = (async () => {
+      if (!window.pdfjsLib) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+      if (!window.pdfjsWorker) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    })().catch(e => { pdfJsPromise = null; throw e; });
+  }
+  return pdfJsPromise;
+}
+
+async function readPdf(file) {
+  await ensurePdfJs();
+  const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  const pages = Math.min(pdf.numPages, 15);
+  let text = "";
+  for (let p = 1; p <= pages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    text += tc.items.map(it => (it.str || "") + (it.hasEOL ? "\n" : " ")).join("") + "\n\n";
+  }
+  return { pdf, text: text.replace(/[ \t]+/g, " ").trim(), pages: pdf.numPages };
+}
+
+async function pdfPagesToImages(pdf, max) {
+  const out = [];
+  for (let p = 1; p <= Math.min(pdf.numPages, max); p++) {
+    const page = await pdf.getPage(p);
+    const vp0 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(2.5, 1600 / vp0.width) });
+    const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    out.push(await new Promise(r => c.toBlob(r, "image/jpeg", 0.85)));
+  }
+  return out.filter(Boolean);
+}
+
+async function handleImportFiles(fileList) {
+  const files = [...(fileList || [])];
+  if (!files.length) return;
+  imp.error = ""; imp.note = "";
+  const first = files[0];
+  const name = first.name || "Datei";
+  const isPdf = /pdf$/i.test(first.type) || /\.pdf$/i.test(name);
+  const isImg = /^image\//.test(first.type) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(name);
+  const isCsv = !isPdf && !isImg;
+  imp.stage = "working"; imp.source = name; render();
+  try {
+    if (isCsv) {
+      const text = await first.text();
+      imp.csvText = text.slice(0, 120000);
+      const res = csvToRows(parseCsv(text));
+      if (res && res.rows.length) {
+        imp.rows = cleanRows(res.rows);
+        imp.note = "Erkannte Spalten: " + res.mapped.join(", ");
+      } else {
+        const r = await askClaudeForRows(importPrompt("eine CSV- oder Textdatei", imp.csvText.slice(0, 60000)));
+        imp.rows = r.rows; imp.note = r.note || "Die Spalten wurden von Claude zugeordnet.";
+      }
+    } else if (isPdf) {
+      const { pdf, text, pages } = await readPdf(first);
+      let r;
+      if (text.replace(/\s/g, "").length > 40) {
+        r = await askClaudeForRows(importPrompt("den Text aus einer PDF-Datei", text.slice(0, 80000)));
+      } else {
+        if (!aiReady()) throw { code: "not_available" };
+        const max = AI_MAX_IMAGES;
+        const imgs = await pdfPagesToImages(pdf, max);
+        r = await askClaudeForRows(importPrompt(`${imgs.length} eingescannte Seite(n) einer PDF-Datei als Bild`), imgs);
+        if (pages > max) r.note = `Nur die ersten ${max} Seiten wurden gelesen. ` + (r.note || "");
+      }
+      imp.rows = r.rows; imp.note = r.note;
+    } else {
+      if (/\.(heic|heif)$/i.test(name) || /heic|heif/i.test(first.type)) throw { code: "image_rejected" };
+      if (!aiReady()) throw { code: "not_available" };
+      const imgs = files.filter(f => /^image\//.test(f.type)).slice(0, AI_MAX_IMAGES);
+      const r = await askClaudeForRows(importPrompt(imgs.length > 1 ? `${imgs.length} Fotos` : "ein Foto"), imgs);
+      imp.rows = r.rows; imp.note = r.note;
+      if (files.length > imgs.length) imp.note = `Nur ${imgs.length} Bilder auf einmal möglich. ` + (imp.note || "");
+    }
+    if (!imp.rows.length) { imp.stage = "pick"; imp.error = "In der Datei wurden keine Artikel gefunden."; }
+    else imp.stage = "review";
+  } catch (e) {
+    imp.ctl = null;
+    if (e && e.code === "cancelled") { imp.stage = "pick"; imp.error = ""; }
+    else if (e && e.message === "load") { imp.stage = "pick"; imp.error = "Das PDF-Werkzeug konnte nicht geladen werden. Prüfe die Internetverbindung."; }
+    else { imp.stage = "pick"; imp.error = e && e.code ? sampleErrorText(e) : "Die Datei konnte nicht gelesen werden."; }
+  }
+  if (ui.importOpen) render();
+}
+
+function findItemByName(name) {
+  const n = name.trim().toLowerCase();
+  return state.items.find(i => i.name.trim().toLowerCase() === n);
+}
+function findSupplierByName(name) {
+  const n = name.trim().toLowerCase();
+  return n ? state.suppliers.find(s => s.name.trim().toLowerCase() === n) : null;
+}
+
+function importDialog() {
+  const head = el("div", { class: "dlg-head" },
+    el("div", {}, el("div", { class: "eyebrow" }, imp.source || "CSV, PDF oder Foto"), el("h2", { id: "dlgTitle" }, "Artikel importieren")),
+    el("button", { class: "icon", type: "button", "aria-label": "Fenster schließen", onclick: closeModal }, "✕"));
+  const body = el("div", { class: "slip" });
+
+  if (imp.stage === "pick") {
+    const input = el("input", { type: "file", id: "impFile", accept: ".csv,.tsv,.txt,.pdf,image/jpeg,image/png,image/webp,image/gif", multiple: true, class: "sr",
+      onchange: (e) => handleImportFiles(e.target.files) });
+    const zone = el("label", { class: "dropzone", for: "impFile",
+      ondragover: (e) => { e.preventDefault(); zone.classList.add("over"); },
+      ondragleave: () => zone.classList.remove("over"),
+      ondrop: (e) => { e.preventDefault(); zone.classList.remove("over"); handleImportFiles(e.dataTransfer.files); } },
+      el("b", {}, "Datei auswählen oder hierher ziehen"),
+      el("span", {}, "CSV-Liste, PDF (z. B. Rechnung, Lieferschein) oder Foto"));
+    body.append(input, zone,
+      el("ul", { class: "hint imp-list" },
+        el("li", {}, "CSV: wird direkt eingelesen. Spalten wie Artikel, Menge, Einheit, Preis, Lieferant werden automatisch erkannt."),
+        el("li", {}, "PDF und Fotos: Claude liest die Artikel über deine Belegerkennung heraus. Das kostet pro Beleg ein paar Cent auf deinem Anthropic-Konto."),
+        el("li", {}, "Vor dem Übernehmen siehst du alles in einer Vorschau und kannst es korrigieren.")));
+    if (imp.error) body.append(el("p", { class: "status err" }, imp.error));
+    body.append(el("div", { class: "actions dlg-actions" }, el("span", { class: "spacer" }), el("button", { type: "button", onclick: closeModal }, "Abbrechen")));
+  }
+
+  if (imp.stage === "working") {
+    body.append(el("div", { class: "working" }, el("span", { class: "spinner", "aria-hidden": "true" }),
+      el("span", {}, "Datei wird gelesen … Bei PDFs und Fotos kann das bis zu einer Minute dauern.")),
+      el("div", { class: "actions dlg-actions" }, el("span", { class: "spacer" }),
+        el("button", { type: "button", onclick: () => { if (imp.ctl) imp.ctl.abort(); else { imp.stage = "pick"; render(); } } }, "Abbrechen")));
+  }
+
+  if (imp.stage === "review") {
+    const lists = [...state.lists].sort(byOrder);
+    const listSel = el("select", { id: "impList", onchange: (e) => { imp.listId = e.target.value; } },
+      el("option", { value: "" }, "– keiner Liste zuordnen –"),
+      ...lists.map(l => { const r = lookup("rubriken", l.rubrikId); return el("option", { value: l.id }, (r ? r.name + " · " : "") + l.name); }));
+    listSel.value = lookup("lists", imp.listId) ? imp.listId : "";
+    const modeSel = el("select", { id: "impMode", onchange: (e) => { imp.mode = e.target.value; render(); } },
+      el("option", { value: "replace" }, "Bestand durch Menge ersetzen"),
+      el("option", { value: "add" }, "Menge zum Bestand dazuzählen (z. B. Lieferschein)"),
+      el("option", { value: "info" }, "Nur Preis und Lieferant aktualisieren"),
+      el("option", { value: "skip" }, "Überspringen"));
+    modeSel.value = imp.mode;
+
+    const supNames = el("datalist", { id: "impSupList" }, ...state.suppliers.map(s => el("option", { value: s.name })));
+    const field = (r, n, k, attrs = {}) => el("input", { id: `imp-${n}-${k}`, value: r[k] ?? "", ...attrs,
+      oninput: (e) => { r[k] = attrs.type === "number" ? (e.target.value === "" ? null : num(e.target.value)) : e.target.value; if (k === "name" || k === "supplier") updateImpChip(r, n); } });
+    const rows = imp.rows.map((r, n) => el("tr", { class: r.include ? "" : "off" },
+      el("td", {}, el("input", { type: "checkbox", id: `imp-${n}-inc`, checked: r.include, "aria-label": "Übernehmen", onchange: (e) => { r.include = e.target.checked; render(); } })),
+      el("td", {}, field(r, n, "name", { class: "w-name", "aria-label": "Artikel" })),
+      el("td", { class: "num" }, field(r, n, "quantity", { type: "number", min: 0, step: "any", class: "qty-in", "aria-label": "Menge" })),
+      el("td", {}, field(r, n, "unit", { class: "w-unit", placeholder: "Stk", "aria-label": "Einheit" })),
+      el("td", { class: "num" }, field(r, n, "price", { type: "number", min: 0, step: "0.01", class: "qty-in", placeholder: "–", "aria-label": "Einkaufspreis" })),
+      el("td", {}, field(r, n, "supplier", { list: "impSupList", class: "w-sup", placeholder: "–", "aria-label": "Lieferant" })),
+      el("td", { id: `imp-${n}-chip` }, impChip(r))
+    ));
+    const count = imp.rows.filter(r => r.include && r.name.trim()).length;
+    body.append(supNames,
+      imp.note ? el("p", { class: "hint" }, imp.note) : null,
+      el("div", { class: "edit", style: "padding-top:0" },
+        el("label", { class: "span3 wide-m" }, "Bei schon vorhandenen Artikeln", modeSel),
+        el("label", { class: "span3 wide-m" }, "Neue Artikel in Liste", listSel),
+        el("label", {}, "Mindest (neu)", el("input", { id: "impMin", type: "number", min: 0, step: "any", value: imp.defMin, oninput: (e) => { imp.defMin = num(e.target.value); } })),
+        el("label", {}, "Soll (neu)", el("input", { id: "impTarget", type: "number", min: 0, step: "any", value: imp.defTarget, oninput: (e) => { imp.defTarget = num(e.target.value); } })),
+        el("p", { class: "hint span4 wide-m", style: "align-self:center" }, "Gilt für neue Artikel, wenn die Datei keine Werte dafür hat.")),
+      el("div", { class: "table-wrap" }, el("table", { class: "imp-table" },
+        el("thead", {}, el("tr", {}, el("th", {}, el("span", { class: "sr" }, "Übernehmen")), el("th", {}, "Artikel"), el("th", { class: "num" }, "Menge"), el("th", {}, "Einheit"), el("th", { class: "num" }, "EK €"), el("th", {}, "Lieferant"), el("th", {}, "Status"))),
+        el("tbody", {}, ...rows))),
+      el("div", { class: "actions dlg-actions" },
+        el("button", { type: "button", class: "primary", disabled: readOnly || !count, onclick: applyImport }, `${count} Artikel übernehmen`),
+        el("button", { type: "button", onclick: () => { imp.stage = "pick"; imp.rows = []; render(); } }, "Andere Datei"),
+        el("span", { class: "spacer" }),
+        el("button", { type: "button", onclick: closeModal }, "Abbrechen")));
+  }
+
+  return el("div", { class: "dialog wide", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlgTitle" }, head, body);
+}
+
+function impChip(r) {
+  const ex = findItemByName(r.name || "");
+  const sup = r.supplier && r.supplier.trim() ? findSupplierByName(r.supplier) : null;
+  return el("span", { class: "imp-chips" },
+    ex ? el("span", { class: "chip kind" }, imp.mode === "skip" ? "vorhanden · übersprungen" : "vorhanden") : el("span", { class: "chip ordered" }, "neu"),
+    r.supplier && r.supplier.trim() && !sup ? el("span", { class: "chip example" }, "neuer Lieferant") : null);
+}
+function updateImpChip(r, n) { const c = $(`imp-${n}-chip`); if (c) c.replaceChildren(impChip(r)); }
+
+async function putMany(c, objs) {
+  if (!objs.length) return;
+  const byId = new Map(objs.map(o => [o.id, o]));
+  state[c] = [...state[c].filter(r => !byId.has(r.id)), ...objs];
+  render();
+  for (let i = 0; i < objs.length; i += 10) {
+    try { await Promise.all(objs.slice(i, i + 10).map(o => store.save(c, o))); }
+    catch (e) { handleWriteError(e); return; }
+  }
+}
+
+async function applyImport() {
+  if (!store || readOnly) return;
+  const rows = imp.rows.filter(r => r.include && r.name.trim());
+  const newSups = new Map();
+  const supId = (name) => {
+    const t = (name || "").trim(); if (!t) return null;
+    const ex = findSupplierByName(t); if (ex) return ex.id;
+    const k = t.toLowerCase();
+    if (!newSups.has(k)) newSups.set(k, blankSupplier(store.newId("suppliers"), t));
+    return newSups.get(k).id;
+  };
+  const items = new Map();
+  let created = 0, updated = 0, skipped = 0;
+  for (const r of rows) {
+    const key = r.name.trim().toLowerCase();
+    const existing = items.get(key) || findItemByName(r.name);
+    const sId = supId(r.supplier);
+    if (existing) {
+      if (imp.mode === "skip") { skipped++; continue; }
+      const next = { ...existing };
+      if (imp.mode === "replace" && r.quantity != null) next.stock = r.quantity;
+      if (imp.mode === "add" && r.quantity != null) next.stock = Math.round((existing.stock + r.quantity) * 1000) / 1000;
+      if (r.price != null) next.price = r.price;
+      if (sId) next.supplierId = sId;
+      if (r.location && !next.location) next.location = r.location;
+      if (!isLow(next)) next.ordered = false;
+      if (!items.has(key)) updated++;
+      items.set(key, next);
+    } else {
+      const min = r.min != null ? r.min : imp.defMin;
+      const target = Math.max(min, r.target != null ? r.target : imp.defTarget);
+      items.set(key, { id: store.newId("items"), name: r.name.trim(), unit: r.unit.trim() || "Stk", stock: r.quantity ?? 0, min, target,
+        ordered: false, listIds: imp.listId && lookup("lists", imp.listId) ? [imp.listId] : [], supplierId: sId || "",
+        location: r.location || "", price: r.price, sortKey: r.sortKey || "" });
+      created++;
+    }
+  }
+  ui.importOpen = false;
+  await putMany("suppliers", [...newSups.values()]);
+  await putMany("items", [...items.values()]);
+  setStatus(`Import fertig: ${created} neu, ${updated} aktualisiert` + (skipped ? `, ${skipped} übersprungen` : "") + (newSups.size ? `, ${newSups.size} neue Lieferanten` : "") + ".");
+}
+
+/* ---------- Scan: QR-Codes pro Artikel ---------- */
+/* Adresse, die im QR-Code steht: die Adresse, unter der die App gerade läuft. */
+const APP_URL = location.origin + location.pathname;
+const qrText = (i) => `${APP_URL}#scan-${i.id}`;
+const idFromQr = (text) => { const m = /(?:#|^)scan-([A-Za-z0-9_~.\-]+)\s*$/.exec(String(text || "").trim()); return m ? m[1] : null; };
+
+let qrLibPromise = null;
+function ensureQrLib() {
+  if (!qrLibPromise) qrLibPromise = (window.qrcode ? Promise.resolve() : loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"))
+    .catch(e => { qrLibPromise = null; throw e; });
+  return qrLibPromise;
+}
+let jsqrPromise = null;
+function ensureJsQr() {
+  if (!jsqrPromise) jsqrPromise = (window.jsQR ? Promise.resolve() : loadScript("https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"))
+    .catch(e => { jsqrPromise = null; throw e; });
+  return jsqrPromise;
+}
+
+function qrMatrix(text) {
+  const qr = window.qrcode(0, "M");
+  qr.addData(text); qr.make();
+  const n = qr.getModuleCount();
+  return { n, dark: (r, c) => qr.isDark(r, c) };
+}
+function qrSvgEl(text, px) {
+  if (!window.qrcode) return el("span", { class: "qr-ph", style: `width:${px}px;height:${px}px` });
+  const { n, dark } = qrMatrix(text);
+  const q = 2, size = n + q * 2;
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`); svg.setAttribute("width", px); svg.setAttribute("height", px);
+  svg.setAttribute("shape-rendering", "crispEdges"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "QR-Code");
+  const bg = document.createElementNS(ns, "rect"); bg.setAttribute("width", size); bg.setAttribute("height", size); bg.setAttribute("fill", "#ffffff");
+  const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); p.setAttribute("fill", "#000000");
+  svg.append(bg, p);
+  return svg;
+}
+
+function openScanItem(id, viaScan) {
+  ui.scanned = id; ui.scanVia = !!viaScan; ui.scanMsg = "";
+  render();
+  setTimeout(() => { const f = $("scanSoll"); if (f) { f.focus(); f.select(); } const p = $("scanPanel"); if (p) p.scrollIntoView({ block: "nearest" }); }, 0);
+}
+
+function renderScan() {
+  if (!window.qrcode) ensureQrLib().then(() => { if (ui.view === "scan") render(); }).catch(() => {});
+  const panel = $("scanPanelWrap"); panel.replaceChildren();
+  const it = ui.scanned ? lookup("items", ui.scanned) : null;
+  if (ui.scanned && !it && state.items.length) { ui.scanMsg = "Dieser QR-Code gehört zu keinem Artikel mehr. Vielleicht wurde der Artikel gelöscht."; ui.scanned = null; }
+  if (ui.scanMsg && !it) panel.append(el("p", { class: "status" }, ui.scanMsg));
+  if (it) panel.append(scanPanel(it));
+
+  const box = $("scanList"); box.replaceChildren();
+  const items = [...state.items].sort(itemComparator());
+  if (!items.length) { box.append(el("div", { class: "row" }, el("span", { class: "hint" }, "Noch keine Artikel. Lege sie im Bestand an oder importiere sie."))); return; }
+  items.forEach(i => box.append(el("div", { class: "row scan-row" + (ui.scanned === i.id ? " current" : "") },
+    el("div", { class: "scan-main" },
+      el("button", { type: "button", class: "qr-thumb", "aria-label": `QR-Code für ${i.name} groß anzeigen`, onclick: () => { ui.qrItem = i.id; render(); } }, qrSvgEl(qrText(i), 56)),
+      el("div", { class: "meta" },
+        el("span", { class: "name" }, i.name),
+        isLow(i) ? el("span", { class: "chip" }, "nachbestellen") : null,
+        el("span", { class: "limits" }, `Soll ${fmt(i.target)} · Haben ${fmt(i.stock)} ${i.unit}`))),
+    el("button", { type: "button", disabled: readOnly, onclick: () => openScanItem(i.id, false) }, "Soll eintragen")
+  )));
+}
+
+function scanPanel(i) {
+  const sollIn = el("input", { id: "scanSoll", type: "number", min: 0, step: "any", inputmode: "decimal", value: i.target, "aria-describedby": "scanSollHint", disabled: readOnly });
+  const f = el("form", { class: "scan-form" },
+    el("label", {}, `Soll (${i.unit})`, sollIn),
+    el("button", { class: "primary", type: "submit", disabled: readOnly }, "Speichern"));
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    let v = num(sollIn.value);
+    let msg = `Soll für „${i.name}“ auf ${fmt(v)} ${i.unit} gesetzt.`;
+    if (v < i.min) { msg = `Soll darf nicht unter Mindest (${fmt(i.min)}) liegen. Es wurde auf ${fmt(i.min)} ${i.unit} gesetzt.`; v = i.min; }
+    ui.scanMsg = msg;
+    patchItem(i, { target: v });
+  });
+  return el("div", { class: "scan-panel", id: "scanPanel", role: "region", "aria-label": "Gescannter Artikel" },
+    el("div", { class: "sec-head" },
+      el("div", {}, el("div", { class: "eyebrow" }, ui.scanVia ? "Gescannt" : "Ausgewählt"), el("h3", { class: "scan-name" }, i.name)),
+      el("button", { class: "icon", type: "button", "aria-label": "Feld schließen", onclick: () => { ui.scanned = null; ui.scanMsg = ""; render(); } }, "✕")),
+    el("div", { class: "scan-facts" },
+      el("span", {}, "Haben ", el("b", {}, `${fmt(i.stock)} ${i.unit}`)),
+      el("span", {}, "Soll ", el("b", {}, `${fmt(i.target)} ${i.unit}`)),
+      el("span", {}, "Mindest ", el("b", {}, `${fmt(i.min)} ${i.unit}`)),
+      i.location ? el("span", {}, "Standort ", el("b", {}, i.location)) : null),
+    f,
+    el("p", { class: "hint", id: "scanSollHint" }, "Mit Enter oder „Speichern“ übernehmen."),
+    ui.scanMsg ? el("p", { class: "status" }, ui.scanMsg) : null,
+    el("div", { class: "actions" }, el("button", { type: "button", onclick: () => $("scanFile").click() }, "Nächsten QR-Code scannen")));
+}
+
+async function decodeQrFile(file) {
+  if (!file) return;
+  ui.scanMsg = "QR-Code wird gelesen …"; ui.scanned = null; render();
+  try {
+    await ensureJsQr();
+    if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name || "")) throw new Error("heic");
+    const bmp = await createImageBitmap(file);
+    let found = null;
+    for (const maxSide of [1600, 900, 2400]) {
+      const sc = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * sc)), h = Math.max(1, Math.round(bmp.height * sc));
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d", { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0, w, h);
+      const res = window.jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "attemptBoth" });
+      if (res && res.data) { found = res.data; break; }
+    }
+    if (!found) { ui.scanMsg = "Kein QR-Code erkannt. Halte die Kamera näher und gerade auf den Code."; render(); return; }
+    const id = idFromQr(found);
+    if (!id || !lookup("items", id)) { ui.scanMsg = "Dieser QR-Code gehört zu keinem Artikel dieser Liste."; render(); return; }
+    openScanItem(id, true);
+  } catch (e) {
+    ui.scanMsg = e && e.message === "heic" ? "HEIC-Fotos gehen nicht. Bitte als JPEG speichern." :
+      e && e.message === "load" ? "Der QR-Leser konnte nicht geladen werden. Prüfe die Internetverbindung." : "Das Foto konnte nicht gelesen werden.";
+    render();
+  }
+}
+
+function qrDialog(i) {
+  return el("div", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlgTitle" },
+    el("div", { class: "dlg-head" },
+      el("div", {}, el("div", { class: "eyebrow" }, "QR-Code"), el("h2", { id: "dlgTitle" }, i.name)),
+      el("button", { class: "icon", type: "button", "aria-label": "Fenster schließen", onclick: closeModal }, "✕")),
+    el("div", { class: "qr-big" }, qrSvgEl(qrText(i), 260)),
+    el("p", { class: "hint", style: "text-align:center;margin:0 auto" }, "Mit der Handy-Kamera scannen: Die Seite öffnet sich direkt beim Eingabefeld für diesen Artikel."),
+    el("p", { class: "status", id: "qrMsg", hidden: true }),
+    el("div", { class: "actions dlg-actions" },
+      el("button", { type: "button", class: "primary", onclick: () => saveLabelsPdf([i], "qrMsg") }, "Etikett als PDF"),
+      el("span", { class: "spacer" }),
+      el("button", { type: "button", onclick: closeModal }, "Schließen")));
+}
+
+async function saveLabelsPdf(items, msgId) {
+  const msg = (t, err) => { const m = $(msgId); if (m) { m.textContent = t; m.hidden = !t; m.classList.toggle("err", !!err); } };
+  if (!items.length) { msg("Keine Artikel vorhanden.", true); return; }
+  msg("PDF wird erstellt …");
+  try { await Promise.all([ensurePdfLib(), ensureQrLib()]); }
+  catch { msg("Werkzeuge konnten nicht geladen werden. Prüfe die Internetverbindung.", true); return; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const cols = 3, rows = 7, cw = 70, ch = 297 / rows, mx = 0, my = 0;
+    items.forEach((i, n) => {
+      const pos = n % (cols * rows);
+      if (n && pos === 0) doc.addPage();
+      const x = mx + (pos % cols) * cw, y = my + Math.floor(pos / cols) * ch;
+      const { n: m, dark } = qrMatrix(qrText(i));
+      const qs = 30, cell = qs / m, qx = x + 5, qy = y + (ch - qs) / 2;
+      doc.setFillColor(0, 0, 0);
+      for (let r = 0; r < m; r++) for (let c = 0; c < m; c++) if (dark(r, c)) doc.rect(qx + c * cell, qy + r * cell, cell + 0.02, cell + 0.02, "F");
+      doc.setTextColor(27, 37, 48); doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+      const tx = qx + qs + 3, tw = x + cw - 4 - tx;
+      const lines = doc.splitTextToSize(i.name, tw).slice(0, 3);
+      doc.text(lines, tx, qy + 5);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(93, 107, 122);
+      let ty = qy + 5 + lines.length * 4.4 + 1;
+      doc.text(`Einheit: ${i.unit}`, tx, ty); ty += 3.8;
+      if (i.location) doc.text(doc.splitTextToSize(`Standort: ${i.location}`, tw)[0], tx, ty);
+    });
+    const filename = items.length === 1 ? `QR_${items[0].name.replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40)}.pdf` : `QR-Etiketten_${todayIso()}.pdf`;
+    await savePdfFile(doc, filename);
+    msg(`Gespeichert als ${filename}. Passt auf A4-Etikettenbögen mit 3 × 7 Etiketten (70 × 42 mm).`);
+  } catch (e) {
+    const code = e && e.code;
+    if (code === "declined") msg("Speichern abgebrochen.");
+    else if (code === "rate_limited") msg("Es ist schon ein Speichern-Fenster offen.", true);
+    else if (code) msg("PDF-Speichern ist in dieser Ansicht nicht verfügbar.", true);
+    else msg("Das PDF konnte nicht erstellt werden.", true);
+  }
+}
+
+function handleScanHash() {
+  const h = (location.hash || "").slice(1);
+  const id = idFromQr(h);
+  if (!id) return false;
+  ui.view = "scan"; ui.scanned = id; ui.scanVia = true; ui.scanMsg = "";
+  try { history.replaceState(null, "", "#scan"); } catch {}
+  return true;
+}
+
+/* ---------- Statische Formulare ---------- */
+$("addItem").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!store || readOnly) return;
+  const name = $("aName").value.trim(); if (!name) return;
+  const supplierId = resolveSupplier($("aSupplier").value, $("aNewSup").value);
+  if (supplierId === null) return;
+  const min = num($("aMin").value);
+  const f = currentFilter();
+  put("items", { id: store.newId("items"), name, unit: $("aUnit").value.trim() || "Stk", stock: num($("aStock").value), min,
+    target: Math.max(min, num($("aTarget").value)), ordered: false, listIds: f.list ? [f.list.id] : [], supplierId,
+    location: $("aLoc").value.trim(), price: priceOrNull($("aPrice").value), sortKey: $("aSort").value.trim() });
+  ["aName", "aPrice", "aSort", "aNewSup"].forEach(k => $(k).value = "");
+  if ($("aSupplier").value === NEW_SUP) $("aSupplier").value = supplierId;
+  syncNewSupplierFields();
+  setStatus("");
+  $("aName").focus();
+});
+
+$("addSupplier").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!store || readOnly) return;
+  const v = (k) => $(k).value.trim();
+  if (!v("sName")) return;
+  put("suppliers", { ...blankSupplier(store.newId("suppliers"), v("sName")), contact: v("sContact"), phone: v("sPhone"), email: v("sEmail"), website: v("sWeb"), note: v("sNote"),
+    street: v("sStreet"), city: v("sCity"), customerNo: v("sCustomer"), sortKey: v("sSort"),
+    payment: v("sPayment"), terms: v("sTerms"), accountHolder: v("sHolder"), bank: v("sBank"), iban: fmtIban(v("sIban")), bic: v("sBic").toUpperCase() });
+  ["sName", "sContact", "sPhone", "sEmail", "sWeb", "sNote", "sStreet", "sCity", "sCustomer", "sSort", "sTerms", "sHolder", "sBank", "sIban", "sBic"].forEach(k => $(k).value = "");
+  $("sPayment").value = "";
+  $("sName").focus();
+});
+$("sPayment").replaceWith(paymentSelect("sPayment", ""));
+
+function syncInvKind() {
+  const item = $("iKind").value === "item";
+  document.querySelectorAll("#addInv .k-item").forEach(e => e.hidden = !item);
+  document.querySelectorAll("#addInv .k-inv").forEach(e => e.hidden = item);
+  $("iName").placeholder = item ? "z. B. Kaffeebohnen" : "z. B. Staubsauger";
+  syncNewSupplierFields();
+}
+$("iKind").addEventListener("change", syncInvKind);
+syncInvKind();
+
+$("addInv").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!store || readOnly) return;
+  const name = $("iName").value.trim(); if (!name) return;
+  const loc = $("iLoc").value.trim();
+  if ($("iKind").value === "item") {
+    const supplierId = resolveSupplier($("iSupplier").value, $("iNewSup").value);
+    if (supplierId === null) return;
+    const min = num($("iMin").value);
+    put("items", { id: store.newId("items"), name, unit: $("iUnit").value.trim() || "Stk", stock: num($("iQty").value), min,
+      target: Math.max(min, num($("iTarget").value)), ordered: false, listIds: [], supplierId, location: loc,
+      price: priceOrNull($("iPrice").value), sortKey: $("iSort").value.trim() });
+    if ($("iSupplier").value === NEW_SUP) $("iSupplier").value = supplierId;
+  } else {
+    put("inventory", { id: store.newId("inventory"), name, qty: num($("iQty").value), condition: $("iCond").value, location: loc, note: $("iNote").value.trim() });
+  }
+  ["iName", "iNote", "iPrice", "iSort", "iNewSup"].forEach(k => $(k).value = "");
+  $("iQty").value = "1";
+  syncNewSupplierFields();
+  setStatus("");
+  $("iName").focus();
+});
+
+["aSupplier", "iSupplier"].forEach(k => $(k).addEventListener("change", syncNewSupplierFields));
+
+document.querySelectorAll("select.sort-select").forEach(sel => {
+  const opts = sel.dataset.sort === "sup" ? SUP_SORTS : ITEM_SORTS;
+  sel.replaceChildren(...Object.entries(opts).map(([v, t]) => el("option", { value: v }, t)));
+  sel.addEventListener("change", () => {
+    if (sel.dataset.sort === "sup") ui.supSort = sel.value; else ui.itemSort = sel.value;
+    try { localStorage.setItem("bestandsliste.sort", JSON.stringify({ item: ui.itemSort, sup: ui.supSort })); } catch {}
+    render();
+  });
+});
+
+document.querySelectorAll(".import-btn").forEach(b => b.addEventListener("click", openImport));
+document.querySelectorAll("#invFilter button").forEach(b => b.addEventListener("click", () => { ui.invFilter = b.dataset.f; ui.editing = null; render(); }));
+
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  if (imp.ctl) imp.ctl.abort();
+  ui.view = b.dataset.view; ui.editing = null; ui.modal = null; ui.slip = null; ui.importOpen = false; ui.qrItem = null; ui.scanned = null; ui.scanMsg = ""; ui.deleteStep = null; ui.armed = null; ui.copyFallback = null;
+  try { history.replaceState(null, "", "#" + ui.view); } catch {}
+  render();
+}));
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && (ui.modal || ui.slip != null || ui.importOpen || ui.qrItem)) closeModal(); });
+$("modal").addEventListener("click", (e) => { if (e.target === $("modal")) closeModal(); });
+
+/* ---------- Start ---------- */
+$("scanBtn").addEventListener("click", () => $("scanFile").click());
+$("scanFile").addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; decodeQrFile(f); });
+$("labelsBtn").addEventListener("click", () => saveLabelsPdf([...state.items].sort(itemComparator()), "labelsMsg"));
+window.addEventListener("hashchange", () => { if (handleScanHash()) render(); });
+
+const startView = (location.hash || "").slice(1);
+if (!handleScanHash() && VIEWS.includes(startView)) ui.view = startView;
+render();
+$("acctBtn").addEventListener("click", openAccount);
+openStore().then(s => {
+  store = s;
+  if (s.kind === "local") setStatus("Supabase noch nicht eingerichtet: Daten liegen nur in diesem Browser.");
+  $("acctBtn").textContent = konto.lager ? konto.lager.name : "Daten & Sicherung";
+  COLLECTIONS.forEach(c => s.subscribe(c,
+    (rows) => { state[c] = rows.map(NORMALIZE[c]); render(); },
+    () => setStatus("Verbindung zu den Listen verloren. Seite neu laden.", true)));
+});
+</script>
+
+</body>
+</html>
